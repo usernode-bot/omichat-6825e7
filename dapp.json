@@ -1,4 +1,23 @@
 {
-  "description": "Dating apps",
-  "secrets": []
+  "name": "Omichat",
+  "description": "Swipe, like and chat with people nearby. Phase 1: the Discover deck.",
+  "icon": { "emoji": "💬" },
+  "secrets": [],
+  "tests": [
+    {
+      "id": "discover.card",
+      "name": "Discover renders the profile card",
+      "path": "/",
+      "expectSelector": "[data-testid=\"profile-card\"]",
+      "expectText": "Discover",
+      "visual": true,
+      "impact": ["public/**"]
+    },
+    {
+      "id": "likes.empty",
+      "name": "Likes tab shows its empty state",
+      "path": "/#likes",
+      "expectText": "No likes yet"
+    }
+  ]
 }
