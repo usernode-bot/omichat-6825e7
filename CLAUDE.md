@@ -88,13 +88,18 @@ tables you've marked private), etc.
 
 ## About Omichat
 
-Dating apps
-
-_(add a sentence or two more of product context here so Claude Code has a
-shared understanding of what this app is for)_
+Omichat is a mobile-first, swipe-based dating app. Phase 1 is client-side
+only: a Discover deck with swipe gestures (right = Like, left = Pass,
+up = Super Like) over mock profile data, plus Likes / Matches / Messages /
+Profile tabs. Swipes and likes are in-memory session state, not persisted.
+Later phases add real profiles, matching and chat.
 
 ## App-specific conventions
 
-_(optional — e.g. "all currency values stored as integer cents, not
-floats"; "the `posts` table is append-only"; "avoid adding new
-dependencies"; etc.)_
+- Original branding only: fuchsia-to-violet accent on a zinc-950 dark
+  ground, Lucide-style stroke icons, system font. Nothing borrowed from
+  existing dating apps.
+- Profile "photos" are generated SVG data URIs from `mock-data.js`, never
+  remote images — the deck must work offline and in proposal checks.
+- Keep the frontend component-based (`public/js/components.js`); no
+  framework, no new dependencies.
