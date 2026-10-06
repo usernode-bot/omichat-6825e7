@@ -98,6 +98,20 @@ window.OmichatData = (function () {
       bio: 'Translator. Fluent in sarcasm and three actual languages.',
       interests: ['Books', 'Cinema', 'Languages'],
     },
+    // Two profiles deliberately omit an age or a distance. The discovery
+    // filters never guess a value for a missing field: these stay visible
+    // only while the matching filter is unset, which keeps the "profile
+    // without data" path real instead of theoretical.
+    {
+      id: 10, seed: 10, name: 'Sasha', age: null, verified: false, distance: 4,
+      bio: 'Night-shift baker. I trade pastries for good playlist recommendations.',
+      interests: ['Baking', 'Vinyl', 'Swimming'],
+    },
+    {
+      id: 11, seed: 11, name: 'Milo', age: 33, verified: true, distance: null,
+      bio: 'Cartographer. Yes, that is still a job. No, not the paper kind.',
+      interests: ['Maps', 'Board games', 'Coffee'],
+    },
   ];
 
   const PROFILES = RAW.map(function (p) {

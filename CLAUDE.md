@@ -108,5 +108,10 @@ Later phases add real profiles, matching and chat.
   amber, match notices carry a sparkle mark).
 - Profile "photos" are generated SVG data URIs from `mock-data.js`, never
   remote images — the deck must work offline and in proposal checks.
+- Discovery filters (age range, max distance) open from the pill above the
+  Discover deck or the header sliders button, and live-filter the deck. A
+  profile missing an age or a distance shows only while that filter is
+  unset; the deck never guesses a value for missing data. Two mock profiles
+  (`Sasha`, `Milo`) exist in `mock-data.js` specifically to exercise this.
 - Keep the frontend component-based (`public/js/components.js`); no
   framework, no new dependencies.

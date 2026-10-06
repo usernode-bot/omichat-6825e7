@@ -78,14 +78,15 @@
       '<div class="absolute inset-x-0 bottom-0 z-20 p-5 flex flex-col gap-2 ' +
       (opts.behind ? '' : 'pointer-events-none') + '">' +
       '<div class="flex items-center gap-2">' +
-      '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name + ', ' + profile.age + '</h2>' +
+      '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name +
+      (profile.age == null ? '' : ', ' + profile.age) + '</h2>' +
       (profile.verified
         ? '<span title="Verified profile" class="text-sky-300">' + icon('shield-check', 'w-5 h-5') + '</span>'
         : '') +
       '</div>' +
       '<p class="flex items-center gap-1.5 text-sm text-zinc-300">' +
       icon('map-pin', 'w-4 h-4 text-zinc-400') +
-      '<span>' + profile.distance + ' km away</span></p>' +
+      '<span>' + (profile.distance == null ? 'Distance unknown' : profile.distance + ' km away') + '</span></p>' +
       '<p class="text-sm leading-relaxed text-zinc-300 line-clamp-2">' + profile.bio + '</p>' +
       '<div class="flex flex-wrap gap-2 pt-0.5">' +
       profile.interests.map(function (i) {
