@@ -27,6 +27,12 @@
       "impact": ["public/**"]
     },
     {
+      "id": "discover.presence",
+      "name": "Discover card shows the online status",
+      "path": "/",
+      "expectText": "Online"
+    },
+    {
       "id": "likes.empty",
       "name": "Likes tab shows its empty state",
       "path": "/#likes",
@@ -39,6 +45,24 @@
       "expectText": "Get verified",
       "visual": true,
       "impact": ["public/**", "server.js", "dapp.json"]
+    },
+    {
+      "id": "messages.color-coded",
+      "name": "Messages list renders colour-coded threads",
+      "path": "/#messages",
+      "expectSelector": "[data-testid=\"thread-row\"]",
+      "expectText": "Messages",
+      "visual": true,
+      "impact": ["public/**"]
+    },
+    {
+      "id": "discover.filters",
+      "name": "Discover shows the age and distance filters control",
+      "path": "/",
+      "expectSelector": "[data-testid=\"filters-button\"]",
+      "expectText": "Filters",
+      "visual": true,
+      "impact": ["public/**"]
     }
   ]
 }

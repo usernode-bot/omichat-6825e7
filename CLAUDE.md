@@ -96,10 +96,22 @@ Later phases add real profiles, matching and chat.
 
 ## App-specific conventions
 
-- Original branding only: fuchsia-to-violet accent on a zinc-950 dark
-  ground, Lucide-style stroke icons, system font. Nothing borrowed from
-  existing dating apps.
+- Original branding only: sky-to-indigo accent on a zinc-950 dark ground
+  (adopted in the "Color where" theme change; was fuchsia-to-violet),
+  Lucide-style stroke icons, system font. Nothing borrowed from existing
+  dating apps. Super Like is gold (amber) so it stays distinct from the
+  sky accent.
+- Message-list colour coding: a sender's colour is the first stop of their
+  photo gradient (`profile.accent` in `mock-data.js`). It colours the
+  thread's avatar ring, name and unread dot; message kinds are styled
+  separately (your messages get the sky "You:" prefix, Super Likes are
+  amber, match notices carry a sparkle mark).
 - Profile "photos" are generated SVG data URIs from `mock-data.js`, never
   remote images — the deck must work offline and in proposal checks.
+- Discovery filters (age range, max distance) open from the pill above the
+  Discover deck or the header sliders button, and live-filter the deck. A
+  profile missing an age or a distance shows only while that filter is
+  unset; the deck never guesses a value for missing data. Two mock profiles
+  (`Sasha`, `Milo`) exist in `mock-data.js` specifically to exercise this.
 - Keep the frontend component-based (`public/js/components.js`); no
   framework, no new dependencies.

@@ -55,48 +55,71 @@ window.OmichatData = (function () {
   const RAW = [
     {
       id: 1, seed: 1, name: 'Maya', age: 26, verified: true, distance: 3,
+      lastActiveMin: 0,
       bio: 'Ceramics studio on weekends and the worst movie taste you will ever meet.',
       interests: ['Ceramics', 'Jazz', 'Street food'],
     },
     {
       id: 2, seed: 2, name: 'Zoe', age: 24, verified: false, distance: 5,
+      lastActiveMin: 3,
       bio: 'Bike mechanic by day, questionable karaoke by night.',
       interests: ['Cycling', 'Karaoke', 'Thrift finds'],
     },
     {
       id: 3, seed: 3, name: 'Priya', age: 29, verified: true, distance: 2,
+      lastActiveMin: 12,
       bio: 'ER nurse. Ask me about the strangest thing I have ever x-rayed.',
       interests: ['Running', 'Cooking', 'Podcasts'],
     },
     {
       id: 4, seed: 4, name: 'Jonas', age: 31, verified: false, distance: 7,
+      lastActiveMin: 45,
       bio: 'I build synthesizers that mostly work. Coffee first, opinions after.',
       interests: ['Synths', 'Board games', 'Coffee'],
     },
     {
       id: 5, seed: 5, name: 'Amara', age: 27, verified: true, distance: 4,
+      lastActiveMin: 25,
       bio: 'Botanical garden regular. Yes, my monstera has a name.',
       interests: ['Plants', 'Yoga', 'Galleries'],
     },
     {
       id: 6, seed: 6, name: 'Felix', age: 25, verified: false, distance: 6,
+      lastActiveMin: 6,
       bio: 'Line cook. I will feed you and I will talk about it the whole time.',
       interests: ['Cooking', 'Vinyl', 'Hiking'],
     },
     {
       id: 7, seed: 7, name: 'Noor', age: 30, verified: true, distance: 3,
+      lastActiveMin: 180,
       bio: 'Architect. I judge buildings quietly and slouch less than I should.',
       interests: ['Design', 'Swimming', 'Film'],
     },
     {
       id: 8, seed: 8, name: 'Theo', age: 28, verified: false, distance: 8,
+      lastActiveMin: 1,
       bio: 'Dog dad to a very loud beagle named Waffle.',
       interests: ['Dogs', 'Bouldering', 'Podcasts'],
     },
     {
       id: 9, seed: 9, name: 'Ines', age: 26, verified: true, distance: 5,
+      lastActiveMin: 18,
       bio: 'Translator. Fluent in sarcasm and three actual languages.',
       interests: ['Books', 'Cinema', 'Languages'],
+    },
+    // Two profiles deliberately omit an age or a distance. The discovery
+    // filters never guess a value for a missing field: these stay visible
+    // only while the matching filter is unset, which keeps the "profile
+    // without data" path real instead of theoretical.
+    {
+      id: 10, seed: 10, name: 'Sasha', age: null, verified: false, distance: 4,
+      bio: 'Night-shift baker. I trade pastries for good playlist recommendations.',
+      interests: ['Baking', 'Vinyl', 'Swimming'],
+    },
+    {
+      id: 11, seed: 11, name: 'Milo', age: 33, verified: true, distance: null,
+      bio: 'Cartographer. Yes, that is still a job. No, not the paper kind.',
+      interests: ['Maps', 'Board games', 'Coffee'],
     },
   ];
 
@@ -104,10 +127,41 @@ window.OmichatData = (function () {
     const base = p.seed * 7;
     return Object.assign({}, p, {
       photos: [photo(base + 1), photo(base + 2), photo(base + 3)],
+      // First colour of the profile's photo gradient. The message list uses
+      // it as the sender's colour so a thread always matches its avatar.
+      accent: PALETTES[p.seed % PALETTES.length][0],
     });
   });
 
   const byId = new Map(PROFILES.map(function (p) { return [p.id, p]; }));
+
+  // Mock message threads. Like everything else in Phase 1 these are static
+  // demo data so the Messages tab has something to show before matching and
+  // chat arrive. `last` is the preview row; `at` is a relative label, not a
+  // timestamp. kinds: 'text' (from either side), 'superlike' and 'match'
+  // (system messages).
+  const THREADS = [
+    {
+      profileId: 1,
+      unread: 2,
+      last: { kind: 'text', from: 'them', text: 'The glaze accident was on purpose, I swear.', at: '2h' },
+    },
+    {
+      profileId: 2,
+      unread: 0,
+      last: { kind: 'match', from: 'system', text: 'You matched with Zoe', at: '5h' },
+    },
+    {
+      profileId: 4,
+      unread: 0,
+      last: { kind: 'text', from: 'me', text: 'Fair. Which board game should I bring?', at: '1d' },
+    },
+    {
+      profileId: 5,
+      unread: 1,
+      last: { kind: 'superlike', from: 'them', text: 'Amara Super Liked you', at: '2d' },
+    },
+  ];
 
   // The signed-in viewer is mock too in Phase 1.
   const VIEWER = {
@@ -117,5 +171,30 @@ window.OmichatData = (function () {
     photo: photo(999),
   };
 
-  return { PROFILES, byId, VIEWER };
+  // ------------------------------------------------------------------ presence
+
+  // Presence thresholds over the mock lastActiveMin offsets: online = active
+  // within the last 2 minutes, recently active = within the last 30. The
+  // labels are built here so every screen word presence the same way.
+  // lastActiveMin is a fixed offset relative to page load, not a clock
+  // timestamp, so a label reads the same for a whole session and identically
+  // whenever a staging preview opens; real drifting last-seen timestamps
+  // arrive with the real presence backend.
+  const ONLINE_WITHIN_MIN = 2;
+  const RECENT_WITHIN_MIN = 30;
+
+  function presence(p) {
+    if (!p || typeof p.lastActiveMin !== 'number') {
+      return { status: 'none', label: null };
+    }
+    if (p.lastActiveMin <= ONLINE_WITHIN_MIN) {
+      return { status: 'online', label: 'Online' };
+    }
+    if (p.lastActiveMin <= RECENT_WITHIN_MIN) {
+      return { status: 'recent', label: 'Active ' + p.lastActiveMin + 'm ago' };
+    }
+    return { status: 'none', label: null };
+  }
+
+  return { PROFILES, byId, THREADS, VIEWER, presence, rng: lcg };
 })();
