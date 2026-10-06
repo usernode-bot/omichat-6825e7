@@ -104,10 +104,41 @@ window.OmichatData = (function () {
     const base = p.seed * 7;
     return Object.assign({}, p, {
       photos: [photo(base + 1), photo(base + 2), photo(base + 3)],
+      // First colour of the profile's photo gradient. The message list uses
+      // it as the sender's colour so a thread always matches its avatar.
+      accent: PALETTES[p.seed % PALETTES.length][0],
     });
   });
 
   const byId = new Map(PROFILES.map(function (p) { return [p.id, p]; }));
+
+  // Mock message threads. Like everything else in Phase 1 these are static
+  // demo data so the Messages tab has something to show before matching and
+  // chat arrive. `last` is the preview row; `at` is a relative label, not a
+  // timestamp. kinds: 'text' (from either side), 'superlike' and 'match'
+  // (system messages).
+  const THREADS = [
+    {
+      profileId: 1,
+      unread: 2,
+      last: { kind: 'text', from: 'them', text: 'The glaze accident was on purpose, I swear.', at: '2h' },
+    },
+    {
+      profileId: 2,
+      unread: 0,
+      last: { kind: 'match', from: 'system', text: 'You matched with Zoe', at: '5h' },
+    },
+    {
+      profileId: 4,
+      unread: 0,
+      last: { kind: 'text', from: 'me', text: 'Fair. Which board game should I bring?', at: '1d' },
+    },
+    {
+      profileId: 5,
+      unread: 1,
+      last: { kind: 'superlike', from: 'them', text: 'Amara Super Liked you', at: '2d' },
+    },
+  ];
 
   // The signed-in viewer is mock too in Phase 1.
   const VIEWER = {
@@ -117,5 +148,5 @@ window.OmichatData = (function () {
     photo: photo(999),
   };
 
-  return { PROFILES, byId, VIEWER };
+  return { PROFILES, byId, THREADS, VIEWER };
 })();

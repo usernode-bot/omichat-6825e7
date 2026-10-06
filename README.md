@@ -9,8 +9,12 @@ Phase 1 is the client-side experience, running entirely on mock data:
   card. Tap the photo (left third, right third, or the dots at the top) to
   browse a profile's photos.
 - **Likes** — everyone you Liked this session, with an undo.
-- **Matches / Messages** — tabs with empty states until matching and chat
-  arrive in later phases.
+- **Matches** — an empty state until matching arrives in a later phase.
+- **Messages** — mock threads (demo data, like the profiles), colour-coded
+  by sender: each thread takes its colour from the sender's photo
+  gradient, and message kinds are styled apart (your messages get a
+  "You:" prefix, Super Likes are gold, match notices carry a sparkle).
+  Chat itself arrives in a later phase.
 - **Profile** — your mock profile and session stats.
 
 There is no backend logic, matching or payments yet. Swipes and likes are

@@ -149,12 +149,12 @@
         'hover:border-zinc-400 hover:text-white hover:scale-105 active:scale-90 ' +
         'transition-all duration-150', 'w-7 h-7'),
       actionButton('super', 'star', 'Super Like',
-        'w-12 h-12 rounded-full border border-cyan-400/70 text-cyan-300 bg-zinc-900/60 ' +
-        'hover:border-cyan-300 hover:text-cyan-200 hover:scale-105 active:scale-90 ' +
+        'w-12 h-12 rounded-full border border-amber-400/70 text-amber-300 bg-zinc-900/60 ' +
+        'hover:border-amber-300 hover:text-amber-200 hover:scale-105 active:scale-90 ' +
         'transition-all duration-150', 'w-6 h-6'),
       actionButton('like', 'heart', 'Like',
-        'w-14 h-14 rounded-full bg-gradient-to-br from-fuchsia-500 to-violet-600 text-white ' +
-        'shadow-lg shadow-fuchsia-600/30 hover:scale-105 active:scale-90 ' +
+        'w-14 h-14 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 text-white ' +
+        'shadow-lg shadow-sky-600/30 hover:scale-105 active:scale-90 ' +
         'transition-all duration-150', 'w-7 h-7')
     );
   }
@@ -166,7 +166,7 @@
     b.setAttribute('aria-label', label);
     b.className =
       'flex items-center justify-center shrink-0 focus-visible:outline-none ' +
-      'focus-visible:ring-2 focus-visible:ring-fuchsia-400 ' + cls;
+      'focus-visible:ring-2 focus-visible:ring-sky-400 ' + cls;
     b.innerHTML = icon(iconName, iconCls);
     b.addEventListener('click', function () { commit(action); });
     return b;
@@ -340,7 +340,7 @@
       '<div class="flex-1 min-w-0">' +
       '<p class="font-semibold text-zinc-100 truncate">' + escapeHtml(p.name + ', ' + p.age) +
       (p.verified
-        ? ' <span class="align-middle text-fuchsia-300">' + icon('shield-check', 'w-4 h-4') + '</span>'
+        ? ' <span class="align-middle text-sky-300">' + icon('shield-check', 'w-4 h-4') + '</span>'
         : '') +
       '</p>' +
       '<p class="text-xs text-zinc-400">' + p.distance + ' km away</p>' +
@@ -349,8 +349,8 @@
     b.type = 'button';
     b.setAttribute('aria-label', 'Remove like');
     b.className =
-      'p-2 rounded-full text-zinc-500 hover:text-fuchsia-300 hover:bg-zinc-800 ' +
-      'active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400';
+      'p-2 rounded-full text-zinc-500 hover:text-sky-300 hover:bg-zinc-800 ' +
+      'active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
     b.innerHTML = icon('undo', 'w-5 h-5');
     b.addEventListener('click', function () {
       state.liked.delete(p.id);
@@ -412,17 +412,73 @@
     section.className = 'h-full flex flex-col';
     section.innerHTML =
       '<h1 class="px-4 pt-4 pb-2 text-xl font-bold text-zinc-100">Messages</h1>';
-    const wrap = document.createElement('div');
-    wrap.className = 'flex-1 flex';
-    wrap.append(UI.EmptyState({
-      icon: 'message-circle',
-      title: 'No messages yet',
-      body: 'Matches open a chat. Your conversations will live here.',
-      actionLabel: 'Open Discover',
-      onAction: go('discover'),
-    }));
-    section.append(wrap);
+    const list = document.createElement('div');
+    list.className = 'px-4 pb-4 flex flex-col gap-2';
+    section.append(list);
     screenEl.append(section);
+    if (!Data.THREADS.length) {
+      list.className = 'flex-1 flex';
+      list.append(UI.EmptyState({
+        icon: 'message-circle',
+        title: 'No messages yet',
+        body: 'Matches open a chat. Your conversations will live here.',
+        actionLabel: 'Open Discover',
+        onAction: go('discover'),
+      }));
+      return;
+    }
+    Data.THREADS.forEach(function (t) {
+      const p = Data.byId.get(t.profileId);
+      if (p) list.append(threadRow(p, t));
+    });
+  }
+
+  // A message thread row. Colour coding: the sender's colour (their photo
+  // gradient's first stop) rings the avatar, colours the name and the
+  // unread dot; the message kind styles the preview line — your messages
+  // get the accent "You:" prefix, a Super Like is gold, and a match is a
+  // system notice.
+  function threadRow(p, thread) {
+    const last = thread.last;
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.dataset.testid = 'thread-row';
+    row.dataset.thread = p.id;
+    row.className =
+      'w-full flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 ' +
+      'text-left hover:border-zinc-700 transition-colors ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
+    row.innerHTML =
+      '<img src="' + p.photos[0] + '" alt="" class="w-14 h-14 rounded-xl object-cover shrink-0">' +
+      '<div class="flex-1 min-w-0">' +
+      '<div class="flex items-center justify-between gap-2">' +
+      '<p class="font-semibold truncate" style="color:' + p.accent + '">' + escapeHtml(p.name + ', ' + p.age) + '</p>' +
+      '<span class="text-xs text-zinc-500 shrink-0">' + last.at + '</span>' +
+      '</div>' + previewHtml(p, last) +
+      '</div>' + (thread.unread > 0
+        ? '<span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:' + p.accent + '" aria-label="' + thread.unread + ' unread"></span>'
+        : '');
+    row.addEventListener('click', function () {
+      toast('Chat opens in a later phase');
+    });
+    return row;
+  }
+
+  function previewHtml(p, last) {
+    if (last.kind === 'superlike') {
+      return '<p class="text-sm text-amber-300 font-medium flex items-center gap-1.5 truncate">' +
+        icon('star', 'w-4 h-4 shrink-0') + '<span class="truncate">' + escapeHtml(last.text) + '</span></p>';
+    }
+    if (last.kind === 'match') {
+      return '<p class="text-sm text-zinc-300 flex items-center gap-1.5 truncate">' +
+        '<span class="text-sky-300 shrink-0">' + icon('sparkles', 'w-4 h-4') + '</span>' +
+        '<span class="truncate">' + escapeHtml(last.text) + '</span></p>';
+    }
+    if (last.from === 'me') {
+      return '<p class="text-sm truncate"><span class="text-sky-300 font-medium">You:</span> ' +
+        '<span class="text-zinc-400">' + escapeHtml(last.text) + '</span></p>';
+    }
+    return '<p class="text-sm text-zinc-400 truncate">' + escapeHtml(last.text) + '</p>';
   }
 
   function renderProfile() {
@@ -432,12 +488,12 @@
     section.className = 'px-4 py-4 flex flex-col gap-4';
     section.innerHTML =
       '<div class="rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900">' +
-      '<div class="h-24 bg-gradient-to-r from-fuchsia-600/40 to-violet-600/40"></div>' +
+      '<div class="h-24 bg-gradient-to-r from-sky-600/40 to-indigo-600/40"></div>' +
       '<div class="px-5 pb-5 -mt-8">' +
       '<img src="' + v.photo + '" alt="" class="w-16 h-16 rounded-full object-cover border-4 border-zinc-900 bg-zinc-800">' +
       '<div class="flex items-center gap-2 mt-2">' +
       '<h2 class="text-xl font-bold text-zinc-100">' + v.name + ', ' + v.age + '</h2>' +
-      '<span class="text-fuchsia-300" title="Verified profile">' + icon('shield-check', 'w-5 h-5') + '</span>' +
+      '<span class="text-sky-300" title="Verified profile">' + icon('shield-check', 'w-5 h-5') + '</span>' +
       '</div>' +
       '<p class="text-sm text-zinc-400 mt-1">' + escapeHtml(v.bio) + '</p>' +
       '<div class="grid grid-cols-3 gap-2 mt-4 text-center">' +
@@ -457,7 +513,7 @@
       b.type = 'button';
       b.className =
         'w-full flex items-center gap-3 px-4 py-3.5 text-left text-sm font-medium text-zinc-200 ' +
-        'hover:bg-zinc-800/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fuchsia-400';
+        'hover:bg-zinc-800/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400';
       b.innerHTML =
         '<span class="text-zinc-500">' + icon(r.icon, 'w-5 h-5') + '</span>' +
         '<span class="flex-1">' + r.label + '</span>' +
