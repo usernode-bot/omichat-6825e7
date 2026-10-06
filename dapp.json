@@ -27,6 +27,15 @@
       "expectText": "Messages",
       "visual": true,
       "impact": ["public/**"]
+    },
+    {
+      "id": "discover.filters",
+      "name": "Discover shows the age and distance filters control",
+      "path": "/",
+      "expectSelector": "[data-testid=\"filters-button\"]",
+      "expectText": "Filters",
+      "visual": true,
+      "impact": ["public/**"]
     }
   ]
 }
