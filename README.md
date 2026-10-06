@@ -15,10 +15,17 @@ Phase 1 is the client-side experience, running entirely on mock data:
   gradient, and message kinds are styled apart (your messages get a
   "You:" prefix, Super Likes are gold, match notices carry a sparkle).
   Chat itself arrives in a later phase.
-- **Profile** — your mock profile and session stats.
+- **Profile** — your mock profile, session stats, and real account
+  verification: confirm your email with a 6-digit code to earn the Verified
+  badge, optionally submit a selfie for photo verification (reviewed by the
+  project's members), and see the review queue if you are one of them.
 
-There is no backend logic, matching or payments yet. Swipes and likes are
-in-memory only and reset on reload.
+Verification is the app's first persisted, server-backed feature: state lives
+in the `user_verification` table keyed to your Homeroom account. Email codes
+are delivered over SMTP (`SMTP_URL` / `SMTP_FROM` app secrets); without them
+production reports verification as unavailable, and staging previews show the
+code inline as a clearly labelled demo. Swipes and likes are still in-memory
+only and reset on reload.
 
 ## Run locally
 

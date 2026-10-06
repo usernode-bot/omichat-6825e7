@@ -26,6 +26,14 @@
     return b;
   }
 
+  // The one verified badge: the app's fuchsia shield-check with its existing
+  // tooltip. Shared by deck cards, like rows and the viewer card, so every
+  // surface that shows a person can show the same word.
+  function VerifiedBadge(cls) {
+    return '<span title="Verified profile" class="text-fuchsia-300">' +
+      icon('shield-check', cls || 'w-5 h-5') + '</span>';
+  }
+
   function EmptyState(opts) {
     const wrap = document.createElement('div');
     wrap.className = opts.fill
@@ -105,9 +113,7 @@
       '<div class="flex items-center gap-2">' +
       '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name +
       (profile.age == null ? '' : ', ' + profile.age) + '</h2>' +
-      (profile.verified
-        ? '<span title="Verified profile" class="text-sky-300">' + icon('shield-check', 'w-5 h-5') + '</span>'
-        : '') +
+      (profile.verified ? VerifiedBadge('w-5 h-5') : '') +
       '</div>' +
       '<p class="flex items-center gap-1.5 text-sm text-zinc-300">' +
       icon('map-pin', 'w-4 h-4 text-zinc-400') +
@@ -193,6 +199,7 @@
     Button: Button,
     EmptyState: EmptyState,
     ProfileCard: ProfileCard,
+    VerifiedBadge: VerifiedBadge,
     presenceEl: presenceEl,
     renderTabbar: renderTabbar,
   };

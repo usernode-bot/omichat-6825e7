@@ -2,7 +2,20 @@
   "name": "Omichat",
   "description": "Swipe, like and chat with people nearby. Phase 1: the Discover deck.",
   "icon": { "emoji": "💬" },
-  "secrets": [],
+  "secrets": [
+    {
+      "key": "SMTP_URL",
+      "description": "SMTP connection for verification codes, e.g. smtp://user:pass@host:port. Leave unset to disable email verification in production (staging previews show the code inline instead).",
+      "required": false,
+      "private": true
+    },
+    {
+      "key": "SMTP_FROM",
+      "description": "From address for verification emails, e.g. \"Omichat <no-reply@yourdomain.com>\".",
+      "required": false,
+      "private": true
+    }
+  ],
   "tests": [
     {
       "id": "discover.card",
@@ -24,6 +37,14 @@
       "name": "Likes tab shows its empty state",
       "path": "/#likes",
       "expectText": "No likes yet"
+    },
+    {
+      "id": "profile.verification",
+      "name": "Profile shows the verification card",
+      "path": "/#profile",
+      "expectText": "Get verified",
+      "visual": true,
+      "impact": ["public/**", "server.js", "dapp.json"]
     },
     {
       "id": "messages.color-coded",
