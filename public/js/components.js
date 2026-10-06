@@ -4,11 +4,11 @@
 (function () {
   const icon = window.OmichatIcons.icon;
 
-  // Primary is the app's one accent: fuchsia to violet. Outline is the
+  // Primary is the app's one accent: sky to indigo. Outline is the
   // secondary surface action.
   const BUTTON_VARIANTS = {
     primary:
-      'bg-gradient-to-r from-fuchsia-500 to-violet-600 text-white shadow-lg shadow-fuchsia-600/25 hover:from-fuchsia-400 hover:to-violet-500',
+      'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-lg shadow-sky-600/25 hover:from-sky-400 hover:to-indigo-500',
     outline:
       'border border-zinc-600 text-zinc-200 bg-zinc-900/60 hover:border-zinc-400 hover:text-white',
   };
@@ -19,7 +19,7 @@
     b.type = 'button';
     b.className =
       'rounded-full px-5 py-2.5 text-sm font-semibold transition-all duration-150 active:scale-95 ' +
-      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fuchsia-400 ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ' +
       (BUTTON_VARIANTS[opts.variant || 'primary']);
     b.textContent = label;
     if (opts.onClick) b.addEventListener('click', opts.onClick);
@@ -32,7 +32,7 @@
       ? opts.fill
       : 'flex-1 flex flex-col items-center justify-center text-center gap-3 px-6 py-10';
     wrap.innerHTML =
-      '<div class="w-16 h-16 rounded-full bg-gradient-to-br from-fuchsia-500/25 to-violet-500/25 text-fuchsia-300 flex items-center justify-center">' +
+      '<div class="w-16 h-16 rounded-full bg-gradient-to-br from-sky-500/25 to-indigo-500/25 text-sky-300 flex items-center justify-center">' +
       icon(opts.icon, 'w-8 h-8') +
       '</div>' +
       '<h2 class="text-lg font-bold text-zinc-100"></h2>' +
@@ -95,22 +95,23 @@
         'class="absolute inset-y-0 right-0 w-1/3 z-10 focus-visible:outline-none"></button>' +
         '<div class="absolute top-3 inset-x-0 z-20 flex justify-center gap-1.5 pointer-events-none" data-dots></div>' +
         '<div data-badge="pass" class="absolute top-6 left-5 z-30 -rotate-12 pointer-events-none rounded-xl border-4 border-zinc-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-zinc-100 bg-zinc-900/30 opacity-0">PASS</div>' +
-        '<div data-badge="like" class="absolute top-6 right-5 z-30 rotate-12 pointer-events-none rounded-xl border-4 border-fuchsia-400 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-fuchsia-200 bg-zinc-900/30 opacity-0">LIKE</div>' +
-        '<div data-badge="super" class="absolute top-14 left-1/2 z-30 -translate-x-1/2 pointer-events-none rounded-xl border-4 border-cyan-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-cyan-100 bg-zinc-900/30 opacity-0">SUPER LIKE</div>';
+        '<div data-badge="like" class="absolute top-6 right-5 z-30 rotate-12 pointer-events-none rounded-xl border-4 border-sky-400 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-sky-100 bg-zinc-900/30 opacity-0">LIKE</div>' +
+        '<div data-badge="super" class="absolute top-14 left-1/2 z-30 -translate-x-1/2 pointer-events-none rounded-xl border-4 border-amber-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-amber-100 bg-zinc-900/30 opacity-0">SUPER LIKE</div>';
     }
 
     inner +=
       '<div data-profile-info class="absolute inset-x-0 bottom-0 z-20 p-5 flex flex-col gap-2 ' +
       (opts.behind ? '' : 'pointer-events-none') + '">' +
       '<div class="flex items-center gap-2">' +
-      '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name + ', ' + profile.age + '</h2>' +
+      '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name +
+      (profile.age == null ? '' : ', ' + profile.age) + '</h2>' +
       (profile.verified
-        ? '<span title="Verified profile" class="text-fuchsia-300">' + icon('shield-check', 'w-5 h-5') + '</span>'
+        ? '<span title="Verified profile" class="text-sky-300">' + icon('shield-check', 'w-5 h-5') + '</span>'
         : '') +
       '</div>' +
       '<p class="flex items-center gap-1.5 text-sm text-zinc-300">' +
       icon('map-pin', 'w-4 h-4 text-zinc-400') +
-      '<span>' + profile.distance + ' km away</span></p>' +
+      '<span>' + (profile.distance == null ? 'Distance unknown' : profile.distance + ' km away') + '</span></p>' +
       '<p class="text-sm leading-relaxed text-zinc-300 line-clamp-2">' + profile.bio + '</p>' +
       '<div class="flex flex-wrap gap-2 pt-0.5">' +
       profile.interests.map(function (i) {
@@ -169,14 +170,14 @@
       if (on) b.setAttribute('aria-current', 'page');
       b.className =
         'relative flex flex-col items-center gap-1 px-2 py-2.5 transition-colors ' +
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fuchsia-400 ' +
-        (on ? 'text-fuchsia-400' : 'text-zinc-500 hover:text-zinc-300');
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400 ' +
+        (on ? 'text-sky-400' : 'text-zinc-500 hover:text-zinc-300');
       b.innerHTML =
         icon(t.tabIcon, 'w-6 h-6') +
         '<span class="text-xs font-medium">' + t.label + '</span>';
       if (t.id === 'likes' && likesCount > 0) {
         const dot = document.createElement('span');
-        dot.className = 'absolute top-2 right-2.5 w-2 h-2 rounded-full bg-fuchsia-500';
+        dot.className = 'absolute top-2 right-2.5 w-2 h-2 rounded-full bg-sky-500';
         b.append(dot);
       }
       b.addEventListener('click', function () {
