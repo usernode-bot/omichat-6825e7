@@ -14,6 +14,12 @@
       "impact": ["public/**"]
     },
     {
+      "id": "discover.presence",
+      "name": "Discover card shows the online status",
+      "path": "/",
+      "expectText": "Online"
+    },
+    {
       "id": "likes.empty",
       "name": "Likes tab shows its empty state",
       "path": "/#likes",

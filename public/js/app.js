@@ -13,10 +13,17 @@
   const icon = window.OmichatIcons.icon;
   const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function shuffle(arr) {
+  // Shuffles with the seeded RNG from mock-data when given a seed, so the
+  // deck order is stable across loads and proposal screenshots; without a
+  // seed it stays random. The fixed seed below puts Maya (online) on top of
+  // the initial deck so presence is always visible on the first card.
+  const DECK_SEED = 37;
+
+  function shuffle(arr, seed) {
     const a = arr.slice();
+    const rnd = seed === undefined ? Math.random : Data.rng(seed);
     for (let i = a.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rnd() * (i + 1));
       const t = a[i]; a[i] = a[j]; a[j] = t;
     }
     return a;
@@ -34,7 +41,7 @@
 
   const state = {
     tab: 'discover',
-    deck: shuffle(Data.PROFILES.map(function (p) { return p.id; })),
+    deck: shuffle(Data.PROFILES.map(function (p) { return p.id; }), DECK_SEED),
     pos: 0,
     photo: 0,
     liked: new Set(),
@@ -111,7 +118,7 @@
         body: "That's everyone within your current filters. Widen them to meet more people.",
         actionLabel: 'Expand Discovery',
         onAction: function () {
-          state.deck = shuffle(Data.PROFILES.map(function (p) { return p.id; }));
+          state.deck = shuffle(Data.PROFILES.map(function (p) { return p.id; }), DECK_SEED);
           state.pos = 0;
           state.photo = 0;
           toast('Showing everyone nearby again');
@@ -335,16 +342,29 @@
     const row = document.createElement('div');
     row.className =
       'flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3';
+    // Online people get a small green dot on the avatar's bottom-right,
+    // outlined like the tab bar's notification dot so it reads on the photo.
+    const presence = Data.presence(p);
     row.innerHTML =
-      '<img src="' + p.photos[0] + '" alt="" class="w-14 h-14 rounded-xl object-cover shrink-0">' +
+      '<span class="relative shrink-0">' +
+      '<img src="' + p.photos[0] + '" alt="" class="w-14 h-14 rounded-xl object-cover">' +
+      (presence.status === 'online'
+        ? '<span aria-hidden="true" class="absolute bottom-0 right-0 w-3 h-3 rounded-full bg-emerald-400 border-2 border-zinc-900"></span>'
+        : '') +
+      '</span>' +
       '<div class="flex-1 min-w-0">' +
       '<p class="font-semibold text-zinc-100 truncate">' + escapeHtml(p.name + ', ' + p.age) +
       (p.verified
         ? ' <span class="align-middle text-fuchsia-300">' + icon('shield-check', 'w-4 h-4') + '</span>'
         : '') +
       '</p>' +
-      '<p class="text-xs text-zinc-400">' + p.distance + ' km away</p>' +
       '</div>';
+    // Status first, distance second, both as plain text.
+    const secondary = document.createElement('p');
+    secondary.className = 'text-xs text-zinc-400';
+    secondary.textContent =
+      (presence.label ? presence.label + ' · ' : '') + p.distance + ' km away';
+    row.querySelector('.flex-1').append(secondary);
     const b = document.createElement('button');
     b.type = 'button';
     b.setAttribute('aria-label', 'Remove like');
