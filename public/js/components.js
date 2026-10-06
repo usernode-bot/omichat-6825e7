@@ -45,6 +45,31 @@
     return wrap;
   }
 
+  // Presence line: a green dot plus "Online", or "Active Xm ago" in the
+  // muted grey the app's metadata uses. Renders null for profiles with no
+  // status so callers add nothing to the layout. The dot is decorative
+  // (aria-hidden); the visible label is the accessible state. Kept here so
+  // ProfileCard, the Likes rows and later chat/match screens all word and
+  // colour presence the same way.
+  function presenceEl(profile) {
+    const info = window.OmichatData.presence(profile);
+    if (info.status === 'none') return null;
+    const p = document.createElement('p');
+    p.dataset.testid = 'presence';
+    p.className = 'flex items-center gap-1.5 text-sm ' +
+      (info.status === 'online' ? 'text-emerald-300' : 'text-zinc-400');
+    if (info.status === 'online') {
+      const dot = document.createElement('span');
+      dot.setAttribute('aria-hidden', 'true');
+      dot.className = 'w-2 h-2 rounded-full bg-emerald-400 shrink-0';
+      p.append(dot);
+    }
+    const label = document.createElement('span');
+    label.textContent = info.label;
+    p.append(label);
+    return p;
+  }
+
   // A profile card. `opts.behind` renders the non-interactive under-stack
   // card that gives the deck its depth.
   function ProfileCard(profile, opts) {
@@ -75,7 +100,7 @@
     }
 
     inner +=
-      '<div class="absolute inset-x-0 bottom-0 z-20 p-5 flex flex-col gap-2 ' +
+      '<div data-profile-info class="absolute inset-x-0 bottom-0 z-20 p-5 flex flex-col gap-2 ' +
       (opts.behind ? '' : 'pointer-events-none') + '">' +
       '<div class="flex items-center gap-2">' +
       '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name +
@@ -95,6 +120,16 @@
       '</div></div>';
 
     el.innerHTML = inner;
+
+    // Presence joins the metadata block, above the distance line. Both the
+    // interactive card and the behind card carry it, like the rest of the
+    // metadata. Rendered as a DOM node so the label never passes through
+    // the innerHTML string.
+    const infoBlock = el.querySelector('[data-profile-info]');
+    const presence = presenceEl(profile);
+    if (infoBlock && presence) {
+      infoBlock.insertBefore(presence, infoBlock.children[1]);
+    }
 
     if (!opts.behind) {
       const dots = el.querySelector('[data-dots]');
@@ -158,6 +193,7 @@
     Button: Button,
     EmptyState: EmptyState,
     ProfileCard: ProfileCard,
+    presenceEl: presenceEl,
     renderTabbar: renderTabbar,
   };
 })();
