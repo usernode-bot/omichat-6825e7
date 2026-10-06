@@ -14,6 +14,14 @@
       "impact": ["public/**"]
     },
     {
+      "id": "discover.presence",
+      "name": "Discover card carries a presence indicator",
+      "path": "/",
+      "expectSelector": "[data-presence-id]",
+      "visual": true,
+      "impact": ["public/**"]
+    },
+    {
       "id": "likes.empty",
       "name": "Likes tab shows its empty state",
       "path": "/#likes",

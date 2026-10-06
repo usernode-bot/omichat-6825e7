@@ -338,13 +338,16 @@
     row.innerHTML =
       '<img src="' + p.photos[0] + '" alt="" class="w-14 h-14 rounded-xl object-cover shrink-0">' +
       '<div class="flex-1 min-w-0">' +
-      '<p class="font-semibold text-zinc-100 truncate">' + escapeHtml(p.name + ', ' + p.age) +
+      '<p class="font-semibold text-zinc-100 truncate" data-name-line>' + escapeHtml(p.name + ', ' + p.age) +
       (p.verified
         ? ' <span class="align-middle text-fuchsia-300">' + icon('shield-check', 'w-4 h-4') + '</span>'
         : '') +
       '</p>' +
-      '<p class="text-xs text-zinc-400">' + p.distance + ' km away</p>' +
+      '<p class="text-xs text-zinc-400" data-distance-line>' + p.distance + ' km away</p>' +
       '</div>';
+    // Presence: dot beside the name, status joined onto the distance line.
+    row.querySelector('[data-name-line]').append(UI.PresenceDot(p, { row: true, dotOnly: true }));
+    row.querySelector('[data-distance-line]').append(UI.PresenceDot(p, { row: true, textOnly: true }));
     const b = document.createElement('button');
     b.type = 'button';
     b.setAttribute('aria-label', 'Remove like');
@@ -481,6 +484,22 @@
 
   window.addEventListener('hashchange', route);
 
+  // Live presence: every minute, each presence handle on screen is replaced
+  // with a freshly computed one. This never calls render(), so drag state,
+  // the photo index and in-flight card animations are untouched, and
+  // screens without handles are a cheap no-op.
+  function refreshPresence() {
+    document.querySelectorAll('[data-presence-id]').forEach(function (el) {
+      const profile = Data.byId.get(Number(el.dataset.presenceId));
+      if (!profile) return;
+      el.replaceWith(UI.PresenceDot(profile, {
+        row: el.dataset.presenceRow === '1',
+        dotOnly: el.dataset.presenceDotOnly === '1',
+        textOnly: el.dataset.presenceTextOnly === '1',
+      }));
+    });
+  }
+
   document.getElementById('btn-bell').addEventListener('click', function () {
     toast('No new notifications yet');
   });
@@ -489,4 +508,6 @@
   });
 
   route();
+
+  setInterval(refreshPresence, 60000);
 })();

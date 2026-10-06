@@ -45,6 +45,73 @@
     return wrap;
   }
 
+  // ------------------------------------------------------------- presence
+
+  // Presence tier from a profile's lastActive time: online for the first
+  // 5 minutes, recently active for the next 25, hidden beyond 30. Pure, so
+  // app.js can recompute it as wall-clock time moves without a re-render.
+  function presenceInfo(profile, now) {
+    if (now === undefined) now = Date.now();
+    const mins = (now - profile.lastActive) / 60000;
+    if (mins < 5) return { tier: 'online', label: 'Online' };
+    if (mins < 30) {
+      return {
+        tier: 'recent',
+        label: 'Active ' + Math.max(1, Math.round(mins)) + 'm ago',
+      };
+    }
+    return { tier: 'hidden', label: '' };
+  }
+
+  // Dot in the tab-badge style: a solid filled circle, recoloured per tier.
+  // Sizes and colours are whole literals so the Tailwind extractor sees them.
+  const DOT_CLASSES = {
+    card: {
+      online: 'w-2.5 h-2.5 rounded-full bg-emerald-400',
+      recent: 'w-2.5 h-2.5 rounded-full bg-amber-400',
+    },
+    row: {
+      online: 'w-2 h-2 rounded-full bg-emerald-400',
+      recent: 'w-2 h-2 rounded-full bg-amber-400',
+    },
+  };
+
+  // A presence handle: a <span data-presence-id> holding the live presence
+  // display for one profile. Default shows the dot with the status text
+  // beside it; opts.dotOnly renders only the dot (the card and Likes rows
+  // put the name beside it) and opts.textOnly only the text (the card's
+  // status line and the Likes distance line own their words). opts.row
+  // picks the compact sizes used in the Likes list. A hidden profile
+  // renders an empty, display-none span: a stale absence never shows, and
+  // the handle stays findable. app.js re-renders handles in place every
+  // minute by building a fresh PresenceDot from the element's dataset.
+  function PresenceDot(profile, opts) {
+    opts = opts || {};
+    const span = document.createElement('span');
+    span.dataset.presenceId = profile.id;
+    if (opts.row) span.dataset.presenceRow = '1';
+    if (opts.dotOnly) span.dataset.presenceDotOnly = '1';
+    if (opts.textOnly) span.dataset.presenceTextOnly = '1';
+    const info = presenceInfo(profile);
+    if (info.tier === 'hidden') {
+      span.style.display = 'none';
+      return span;
+    }
+    span.className = 'inline-flex items-center gap-1.5 align-middle';
+    if (!opts.textOnly) {
+      const dot = document.createElement('span');
+      dot.className = DOT_CLASSES[opts.row ? 'row' : 'card'][info.tier];
+      span.append(dot);
+    }
+    if (!opts.dotOnly) {
+      const label = document.createElement('span');
+      label.className = opts.row ? 'text-xs text-zinc-400' : 'text-sm text-zinc-300';
+      label.textContent = (opts.row && opts.textOnly ? ' · ' : '') + info.label;
+      span.append(label);
+    }
+    return span;
+  }
+
   // A profile card. `opts.behind` renders the non-interactive under-stack
   // card that gives the deck its depth.
   function ProfileCard(profile, opts) {
@@ -77,7 +144,7 @@
     inner +=
       '<div class="absolute inset-x-0 bottom-0 z-20 p-5 flex flex-col gap-2 ' +
       (opts.behind ? '' : 'pointer-events-none') + '">' +
-      '<div class="flex items-center gap-2">' +
+      '<div class="flex items-center gap-2" data-name-row>' +
       '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name + ', ' + profile.age + '</h2>' +
       (profile.verified
         ? '<span title="Verified profile" class="text-fuchsia-300">' + icon('shield-check', 'w-5 h-5') + '</span>'
@@ -96,6 +163,11 @@
     el.innerHTML = inner;
 
     if (!opts.behind) {
+      // Presence: dot beside the name, status on its own muted line below
+      // it. The behind card shows none.
+      const nameRow = el.querySelector('[data-name-row]');
+      nameRow.append(PresenceDot(profile, { dotOnly: true }));
+      nameRow.after(PresenceDot(profile, { textOnly: true }));
       const dots = el.querySelector('[data-dots]');
       profile.photos.forEach(function (_, i) {
         const d = document.createElement('button');
@@ -157,6 +229,8 @@
     Button: Button,
     EmptyState: EmptyState,
     ProfileCard: ProfileCard,
+    presenceInfo: presenceInfo,
+    PresenceDot: PresenceDot,
     renderTabbar: renderTabbar,
   };
 })();

@@ -1,8 +1,10 @@
 // Omichat Phase 1 mock data.
 //
-// Everything here is mock: profiles, distances, verification flags. No
-// backend, matching or persistence yet. Profile "photos" are generated SVG
-// placeholders (a gradient portrait tile with an abstract silhouette) so the
+// Everything here is mock: profiles, distances, verification flags, and
+// each profile's presence seed (activeMinAgo, minutes before load they were
+// last active). No backend, matching or persistence yet. Profile "photos"
+// are generated SVG placeholders (a gradient portrait tile with an abstract
+// silhouette) so the
 // deck works offline, in staging previews, and in proposal checks, where no
 // real image CDN is reachable. Photos are data URIs, never bytes in a DB.
 window.OmichatData = (function () {
@@ -54,47 +56,47 @@ window.OmichatData = (function () {
 
   const RAW = [
     {
-      id: 1, seed: 1, name: 'Maya', age: 26, verified: true, distance: 3,
+      id: 1, seed: 1, name: 'Maya', age: 26, verified: true, distance: 3, activeMinAgo: 0,
       bio: 'Ceramics studio on weekends and the worst movie taste you will ever meet.',
       interests: ['Ceramics', 'Jazz', 'Street food'],
     },
     {
-      id: 2, seed: 2, name: 'Zoe', age: 24, verified: false, distance: 5,
+      id: 2, seed: 2, name: 'Zoe', age: 24, verified: false, distance: 5, activeMinAgo: 2,
       bio: 'Bike mechanic by day, questionable karaoke by night.',
       interests: ['Cycling', 'Karaoke', 'Thrift finds'],
     },
     {
-      id: 3, seed: 3, name: 'Priya', age: 29, verified: true, distance: 2,
+      id: 3, seed: 3, name: 'Priya', age: 29, verified: true, distance: 2, activeMinAgo: 4,
       bio: 'ER nurse. Ask me about the strangest thing I have ever x-rayed.',
       interests: ['Running', 'Cooking', 'Podcasts'],
     },
     {
-      id: 4, seed: 4, name: 'Jonas', age: 31, verified: false, distance: 7,
+      id: 4, seed: 4, name: 'Jonas', age: 31, verified: false, distance: 7, activeMinAgo: 8,
       bio: 'I build synthesizers that mostly work. Coffee first, opinions after.',
       interests: ['Synths', 'Board games', 'Coffee'],
     },
     {
-      id: 5, seed: 5, name: 'Amara', age: 27, verified: true, distance: 4,
+      id: 5, seed: 5, name: 'Amara', age: 27, verified: true, distance: 4, activeMinAgo: 22,
       bio: 'Botanical garden regular. Yes, my monstera has a name.',
       interests: ['Plants', 'Yoga', 'Galleries'],
     },
     {
-      id: 6, seed: 6, name: 'Felix', age: 25, verified: false, distance: 6,
+      id: 6, seed: 6, name: 'Felix', age: 25, verified: false, distance: 6, activeMinAgo: 18,
       bio: 'Line cook. I will feed you and I will talk about it the whole time.',
       interests: ['Cooking', 'Vinyl', 'Hiking'],
     },
     {
-      id: 7, seed: 7, name: 'Noor', age: 30, verified: true, distance: 3,
+      id: 7, seed: 7, name: 'Noor', age: 30, verified: true, distance: 3, activeMinAgo: 45,
       bio: 'Architect. I judge buildings quietly and slouch less than I should.',
       interests: ['Design', 'Swimming', 'Film'],
     },
     {
-      id: 8, seed: 8, name: 'Theo', age: 28, verified: false, distance: 8,
+      id: 8, seed: 8, name: 'Theo', age: 28, verified: false, distance: 8, activeMinAgo: 120,
       bio: 'Dog dad to a very loud beagle named Waffle.',
       interests: ['Dogs', 'Bouldering', 'Podcasts'],
     },
     {
-      id: 9, seed: 9, name: 'Ines', age: 26, verified: true, distance: 5,
+      id: 9, seed: 9, name: 'Ines', age: 26, verified: true, distance: 5, activeMinAgo: 1440,
       bio: 'Translator. Fluent in sarcasm and three actual languages.',
       interests: ['Books', 'Cinema', 'Languages'],
     },
@@ -104,6 +106,10 @@ window.OmichatData = (function () {
     const base = p.seed * 7;
     return Object.assign({}, p, {
       photos: [photo(base + 1), photo(base + 2), photo(base + 3)],
+      // Fixed activity time, derived from the seed at load so ages grow
+      // naturally during a session and presence tiers drift like a live
+      // feed would.
+      lastActive: Date.now() - p.activeMinAgo * 60000,
     });
   });
 
