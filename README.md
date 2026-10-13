@@ -1,31 +1,29 @@
 # Omichat
 
-A mobile-first, swipe-based dating app running on Homeroom.
+A mobile-first, swipe-based way to meet people nearby who share your
+interests (friends, activity partners, study buddies, hobby groups),
+running on Homeroom.
 
-Phase 1 is the client-side experience, running entirely on mock data:
+- **Discover**: a swipeable deck of (mock) profiles. Swipe right or tap the
+  wave to Say hi, swipe left or tap the cross to Skip. Each card shows how
+  many interests you have in common. Tap the card's details to open the
+  **full profile**: a swipeable gallery of up to 6 photos, bio, prompts,
+  what they are looking for, job, education, interests (shared ones
+  highlighted) and their Instagram or Spotify when they added one, with
+  Skip and Say hi at the bottom.
+- **Hellos**: everyone you said hi to this session, with an undo.
+- **Connections**: an empty state until mutual hellos arrive.
+- **Messages**: mock threads, colour-coded by sender. Chat arrives later.
+- **Profile**: your own profile with a completeness meter and hints for
+  what to add next, **Edit profile** (photos with compression and an upload
+  state, reorder and delete; name, age, bio, "Looking for", job, education,
+  up to 8 interests from a list, up to 3 prompts, optional Instagram and
+  Spotify), a preview of how others see you, and account verification.
 
-- **Discover** — a swipeable deck of profiles. Drag a card right to Like,
-  left to Pass, or up to Super Like, or use the action buttons below the
-  card. Tap the photo (left third, right third, or the dots at the top) to
-  browse a profile's photos.
-- **Likes** — everyone you Liked this session, with an undo.
-- **Matches** — an empty state until matching arrives in a later phase.
-- **Messages** — mock threads (demo data, like the profiles), colour-coded
-  by sender: each thread takes its colour from the sender's photo
-  gradient, and message kinds are styled apart (your messages get a
-  "You:" prefix, Super Likes are gold, match notices carry a sparkle).
-  Chat itself arrives in a later phase.
-- **Profile** — your mock profile, session stats, and real account
-  verification: confirm your email with a 6-digit code to earn the Verified
-  badge, optionally submit a selfie for photo verification (reviewed by the
-  project's members), and see the review queue if you are one of them.
-
-Verification is the app's first persisted, server-backed feature: state lives
-in the `user_verification` table keyed to your Homeroom account. Email codes
-are delivered over SMTP (`SMTP_URL` / `SMTP_FROM` app secrets); without them
-production reports verification as unavailable, and staging previews show the
-code inline as a clearly labelled demo. Swipes and likes are still in-memory
-only and reset on reload.
+Your profile and verification are stored server-side per Homeroom account
+(`profiles` and `user_verification`, both `staging:private`). Photos are
+stored by the platform's file storage; the app keeps only their URLs.
+Swipes and hellos are still in-memory and reset on reload.
 
 ## Run locally
 

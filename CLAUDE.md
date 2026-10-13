@@ -88,30 +88,53 @@ tables you've marked private), etc.
 
 ## About Omichat
 
-Omichat is a mobile-first, swipe-based dating app. Phase 1 is client-side
-only: a Discover deck with swipe gestures (right = Like, left = Pass,
-up = Super Like) over mock profile data, plus Likes / Matches / Messages /
-Profile tabs. Swipes and likes are in-memory session state, not persisted.
-Later phases add real profiles, matching and chat.
+Omichat is a mobile-first, swipe-based way to meet people nearby who share
+your interests: friends, activity partners, study buddies and hobby groups.
+It is not a dating app, and must not grow romantic or dating framing
+(Homeroom's content rules forbid dating features). The Discover deck has two
+actions, Skip (swipe left) and Say hi (swipe right); people you say hi to are
+listed under Hellos, and mutual hellos will become Connections. Tapping a
+card opens the full profile (`#discover/<id>`), with Skip and Say hi kept at
+the bottom.
+
+Discover profiles are still mock data, and swipes and hellos are in-memory
+session state. Persisted, per-account features: verification
+(`user_verification`) and the viewer's own profile (`profiles`, edited at
+`#profile/edit`).
 
 ## App-specific conventions
 
+- Words: Skip, Say hi, Hellos, Connections. Never Like, Pass, Super Like or
+  Match. Old `#likes` / `#matches` links redirect to `#hellos` /
+  `#connections`.
 - Original branding only: sky-to-indigo accent on a zinc-950 dark ground
   (adopted in the "Color where" theme change; was fuchsia-to-violet),
   Lucide-style stroke icons, system font. Nothing borrowed from existing
-  dating apps. Super Like is gold (amber) so it stays distinct from the
-  sky accent.
+  social apps. One fixed dark look.
 - Message-list colour coding: a sender's colour is the first stop of their
   photo gradient (`profile.accent` in `mock-data.js`). It colours the
   thread's avatar ring, name and unread dot; message kinds are styled
-  separately (your messages get the sky "You:" prefix, Super Likes are
-  amber, match notices carry a sparkle mark).
-- Profile "photos" are generated SVG data URIs from `mock-data.js`, never
-  remote images — the deck must work offline and in proposal checks.
+  separately (your messages get the sky "You:" prefix, a hi carries a wave
+  mark, connection notices carry a sparkle mark).
+- Profile "photos" for mock people are generated SVG data URIs from
+  `mock-data.js`, never remote images, so the deck works offline and in
+  proposal checks. The viewer's own photos are uploaded with
+  `usernode.uploadFile` (downscaled to 1280px JPEG first); `profiles.data`
+  stores only `{ id, url }` per photo.
+- `public/js/profile-schema.js` is the single source for the interest list,
+  the prompts, "Looking for" options, field limits, validation and the
+  completeness score. The page loads it and `server.js` requires it, so the
+  client and the server validate the same way. Add interests or prompts
+  there only.
+- `profiles` is marked `staging:private` (jobs, education and social
+  handles are personal information). Nothing is seeded for it: an empty
+  profile is the real first-run state, and the completeness hints start
+  from there.
 - Discovery filters (age range, max distance) open from the pill above the
   Discover deck or the header sliders button, and live-filter the deck. A
   profile missing an age or a distance shows only while that filter is
-  unset; the deck never guesses a value for missing data. Two mock profiles
-  (`Sasha`, `Milo`) exist in `mock-data.js` specifically to exercise this.
-- Keep the frontend component-based (`public/js/components.js`); no
-  framework, no new dependencies.
+  unset; the deck never guesses a value for missing data. Two sparse mock
+  profiles (`Sasha`, `Milo`) exercise this and the full profile's empty
+  states.
+- Keep the frontend component-based (`public/js/components.js`,
+  `profile-view.js`, `profile-edit.js`); no framework, no new dependencies.

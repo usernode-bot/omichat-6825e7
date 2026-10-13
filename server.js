@@ -4,6 +4,8 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
+// Shared with the page: interest/prompt lists, validation, completeness.
+const ProfileSchema = require('./public/js/profile-schema.js');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -186,6 +188,18 @@ async function ensureSchema() {
         [id, username, demoPhotoSvg(fill)]);
     }
   }
+  // The viewer's own editable profile, keyed to the platform user id. Jobs,
+  // education and social handles are personal information, so staging
+  // copies the schema only. Nothing is seeded: an empty profile IS what a
+  // new account sees, and the completeness hints start from there.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS profiles (
+      user_id    TEXT PRIMARY KEY,
+      username   TEXT NOT NULL,
+      data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await pool.query(`COMMENT ON TABLE profiles IS 'staging:private'`);
   dbReady = true;
 }
 
@@ -468,6 +482,46 @@ app.post('/api/verification/review', async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------- profiles
+// The signed-in person's own profile. Photos are stored platform-side
+// (usernode.uploadFile in the page); this table keeps only their ids and URLs.
+
+app.get('/api/profile', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Profiles are not available here' });
+  try {
+    const { rows } = await pool.query(
+      'SELECT data, updated_at FROM profiles WHERE user_id = $1', [req.user.id]);
+    res.json({
+      username: req.user.username,
+      profile: rows[0] ? Object.assign(ProfileSchema.empty(), rows[0].data) : null,
+      updatedAt: rows[0] ? rows[0].updated_at : null,
+    });
+  } catch (err) {
+    console.error('profile load failed', err.message);
+    res.status(500).json({ error: 'Could not load your profile' });
+  }
+});
+
+app.put('/api/profile', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Profiles are not available here' });
+  const { value, errors } = ProfileSchema.validate(req.body && req.body.profile);
+  if (Object.keys(errors).length) {
+    return res.status(400).json({ error: 'Check the highlighted fields', fields: errors });
+  }
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO profiles (user_id, username, data, updated_at)
+       VALUES ($1, $2, $3::jsonb, now())
+       ON CONFLICT (user_id) DO UPDATE SET
+         username = EXCLUDED.username, data = EXCLUDED.data, updated_at = now()
+       RETURNING data, updated_at`,
+      [req.user.id, req.user.username, JSON.stringify(value)]);
+    res.json({ username: req.user.username, profile: rows[0].data, updatedAt: rows[0].updated_at });
+  } catch (err) {
+    console.error('profile save failed', err.message);
+    res.status(500).json({ error: 'Could not save your profile' });
+  }
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -511,7 +565,7 @@ async function start() {
     await ensureSchema();
   } catch (err) {
     // The app still serves; verification routes answer 503 until the DB is back.
-    console.error('[boot] verification schema setup failed', err.message);
+    console.error('[boot] schema setup failed', err.message);
   }
   const server = app.listen(port, () => console.log(`Listening on :${port}`));
   // Let Envoy retire idle upstream connections at 60s, with a 15s margin.

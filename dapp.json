@@ -1,7 +1,9 @@
 {
   "name": "Omichat",
-  "description": "Swipe, like and chat with people nearby. Phase 1: the Discover deck.",
-  "icon": { "emoji": "💬" },
+  "description": "Meet people nearby who share your interests, for friends and hobbies.",
+  "icon": {
+    "emoji": "💬"
+  },
   "secrets": [
     {
       "key": "SMTP_URL",
@@ -24,7 +26,9 @@
       "expectSelector": "[data-testid=\"profile-card\"]",
       "expectText": "Discover",
       "visual": true,
-      "impact": ["public/**"]
+      "impact": [
+        "public/**"
+      ]
     },
     {
       "id": "discover.presence",
@@ -33,10 +37,10 @@
       "expectText": "Online"
     },
     {
-      "id": "likes.empty",
-      "name": "Likes tab shows its empty state",
-      "path": "/#likes",
-      "expectText": "No likes yet"
+      "id": "hellos.empty",
+      "name": "Hellos tab shows its empty state",
+      "path": "/#hellos",
+      "expectText": "No hellos yet"
     },
     {
       "id": "profile.verification",
@@ -44,7 +48,11 @@
       "path": "/#profile",
       "expectText": "Get verified",
       "visual": true,
-      "impact": ["public/**", "server.js", "dapp.json"]
+      "impact": [
+        "public/**",
+        "server.js",
+        "dapp.json"
+      ]
     },
     {
       "id": "messages.color-coded",
@@ -53,7 +61,9 @@
       "expectSelector": "[data-testid=\"thread-row\"]",
       "expectText": "Messages",
       "visual": true,
-      "impact": ["public/**"]
+      "impact": [
+        "public/**"
+      ]
     },
     {
       "id": "discover.filters",
@@ -62,7 +72,45 @@
       "expectSelector": "[data-testid=\"filters-button\"]",
       "expectText": "Filters",
       "visual": true,
-      "impact": ["public/**"]
+      "impact": [
+        "public/**"
+      ]
+    },
+    {
+      "id": "discover.full-profile",
+      "name": "Full profile opens with Skip and Say hi",
+      "path": "/#discover/1",
+      "expectSelector": "[data-testid=\"full-profile\"] [data-testid=\"profile-prompts\"]",
+      "expectText": "Say hi",
+      "visual": true,
+      "impact": [
+        "public/**"
+      ]
+    },
+    {
+      "id": "discover.shared-interests",
+      "name": "Discover card shows the interests-in-common line",
+      "path": "/",
+      "expectSelector": "[data-testid=\"profile-card\"] [data-testid=\"shared-interests\"]"
+    },
+    {
+      "id": "profile.completeness",
+      "name": "Profile tab shows the completeness meter",
+      "path": "/#profile",
+      "expectSelector": "[data-testid=\"profile-completeness\"]",
+      "expectText": "complete"
+    },
+    {
+      "id": "profile.edit",
+      "name": "Edit Profile loads the saved profile",
+      "path": "/#profile/edit",
+      "expectSelector": "[data-testid=\"edit-interests\"]",
+      "expectText": "Save changes",
+      "visual": true,
+      "impact": [
+        "public/**",
+        "server.js"
+      ]
     }
   ]
 }
