@@ -110,6 +110,9 @@
     return parts.join(' · ');
   }
 
+  const Safety = window.OmichatSafety;
+  const SafetyUI = window.OmichatSafetyUI;
+
   const state = {
     tab: 'discover',
     deck: shuffle(Data.PROFILES.map(function (p) { return p.id; }), DECK_SEED),
@@ -121,6 +124,10 @@
     // Verification status. undefined = not loaded yet, null = unavailable
     // (no auth here, server unreachable): no card, no badge, never a fake one.
     verification: undefined,
+    // Selfie check status from the safety service: 'none' | 'pending' |
+    // 'verified' | 'rejected'. Blocked profile ids are permanent.
+    selfie: 'none',
+    blocked: new Set(Safety.services().blocks.list()),
     // Discovery filters. null means the filter is off; a profile missing the
     // field a filter is set on is hidden rather than guessed about.
     filters: { minAge: null, maxAge: null, maxDistance: null },
@@ -183,7 +190,7 @@
   function remaining() {
     return state.deck.slice(state.pos).filter(function (id) {
       const p = Data.byId.get(id);
-      return p && matchesFilters(p);
+      return p && !state.blocked.has(id) && matchesFilters(p);
     });
   }
 
@@ -460,7 +467,7 @@
 
   // Keyboard support for desktop: arrows mirror the three actions.
   document.addEventListener('keydown', function (e) {
-    if (filtersOpen) return;
+    if (filtersOpen || SafetyUI.busy()) return;
     if (state.tab !== 'discover' || committing || !currentProfile()) return;
     if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
     if (e.key === 'ArrowLeft') commit('pass');
@@ -615,7 +622,8 @@
       'flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3';
     // Online people get a small green dot on the avatar's bottom-right,
     // outlined like the tab bar's notification dot so it reads on the photo.
-    const presence = Data.presence(p);
+    const privacy = Safety.services().privacy.get();
+    const presence = privacy.hideOnlineStatus ? { status: 'none', label: null } : Data.presence(p);
     row.innerHTML =
       '<span class="relative shrink-0">' +
       '<img src="' + p.photos[0] + '" alt="" class="w-14 h-14 rounded-xl object-cover">' +
@@ -634,8 +642,8 @@
     secondary.className = 'text-xs text-zinc-400';
     secondary.textContent =
       (presence.label ? presence.label + ' · ' : '') +
-      (p.distance == null ? 'Distance unknown' : p.distance + ' km away');
-    row.querySelector('.flex-1').append(secondary);
+      (privacy.hideDistance ? '' : p.distance == null ? 'Distance unknown' : p.distance + ' km away');
+    if (secondary.textContent) row.querySelector('.flex-1').append(secondary);
     const b = document.createElement('button');
     b.type = 'button';
     b.setAttribute('aria-label', 'Remove like');
@@ -662,7 +670,7 @@
     section.append(list);
     screenEl.append(section);
     const likedProfiles = Data.PROFILES.filter(function (p) {
-      return state.liked.has(p.id);
+      return state.liked.has(p.id) && !state.blocked.has(p.id);
     });
     if (!likedProfiles.length) {
       list.className = 'flex-1 flex';
@@ -707,7 +715,8 @@
     list.className = 'px-4 pb-4 flex flex-col gap-2';
     section.append(list);
     screenEl.append(section);
-    if (!Data.THREADS.length) {
+    const threads = Data.THREADS.filter(function (t) { return !state.blocked.has(t.profileId); });
+    if (!threads.length) {
       list.className = 'flex-1 flex';
       list.append(UI.EmptyState({
         icon: 'message-circle',
@@ -718,7 +727,7 @@
       }));
       return;
     }
-    Data.THREADS.forEach(function (t) {
+    threads.forEach(function (t) {
       const p = Data.byId.get(t.profileId);
       if (p) list.append(threadRow(p, t));
     });
@@ -1193,6 +1202,8 @@
     return row;
   }
 
+  const SELFIE_LABELS = { pending: 'Pending review', verified: 'Verified', rejected: 'Declined' };
+
   function renderProfile() {
     const v = Data.VIEWER;
     const section = document.createElement('section');
@@ -1206,7 +1217,7 @@
       '<div class="flex items-center gap-2 mt-2">' +
       '<h2 class="text-xl font-bold text-zinc-100">' + v.name + ', ' + v.age + '</h2>' +
       // Real verification status only: unavailable or unverified shows no badge.
-      (state.verification && state.verification.tier !== 'unverified'
+      ((state.verification && state.verification.tier !== 'unverified') || state.selfie === 'verified'
         ? UI.VerifiedBadge('w-5 h-5') : '') +
       '</div>' +
       '<p class="text-sm text-zinc-400 mt-1">' + escapeHtml(v.bio) + '</p>' +
@@ -1221,7 +1232,9 @@
     [
       { icon: 'sliders-horizontal', label: 'Discovery Preferences' },
       { icon: 'bell', label: 'Notifications' },
-      { icon: 'shield-check', label: 'Privacy and safety' },
+      { icon: 'shield-check', label: 'Privacy and safety', open: SafetyUI.openPrivacy },
+      { icon: 'camera', label: 'Selfie verification', open: SafetyUI.openSelfieFlow,
+        status: SELFIE_LABELS[state.selfie] },
     ].forEach(function (r) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -1231,9 +1244,13 @@
       b.innerHTML =
         '<span class="text-zinc-500">' + icon(r.icon, 'w-5 h-5') + '</span>' +
         '<span class="flex-1">' + r.label + '</span>' +
+        (r.status ? '<span class="text-xs text-zinc-400">' + r.status + '</span>' : '') +
         '<span class="text-zinc-600">' + icon('chevron-right', 'w-4 h-4') + '</span>';
+      if (r.label === 'Privacy and safety') b.dataset.testid = 'privacy-row';
+      if (r.label === 'Selfie verification') b.dataset.testid = 'selfie-row';
       b.addEventListener('click', function () {
-        toast('This arrives in a later phase');
+        if (r.open) r.open();
+        else toast('This arrives in a later phase');
       });
       rowsEl.append(b);
     });
@@ -1255,6 +1272,32 @@
 
   window.addEventListener('hashchange', route);
 
+  SafetyUI.init({
+    presentSheet: presentSheet,
+    toast: toast,
+    // Called after a block, a privacy change or a selfie step: reread the
+    // safety state and redraw whatever screen is up.
+    onChange: function () {
+      state.blocked = new Set(Safety.services().blocks.list());
+      state.blocked.forEach(function (id) { state.liked.delete(id); });
+      Safety.services().verification.getStatus().then(function (s) {
+        state.selfie = s.status;
+        render();
+      }, function () { render(); });
+      render();
+    },
+  });
+
+  // Delegated taps: the verified shield (anywhere it shows) and the card's
+  // three-dot menu.
+  document.addEventListener('click', function (e) {
+    const t = e.target.closest && e.target.closest('[data-verified-info], [data-card-menu]');
+    if (!t) return;
+    e.stopPropagation();
+    if (t.matches('[data-verified-info]')) SafetyUI.openVerifiedInfo();
+    else if (currentProfile()) SafetyUI.openMenu(currentProfile());
+  }, true);
+
   document.getElementById('btn-bell').addEventListener('click', function () {
     toast('No new notifications yet');
   });
@@ -1263,6 +1306,11 @@
   });
 
   route();
+  SafetyUI.mountAgeGate();
+  Safety.services().verification.getStatus().then(function (s) {
+    state.selfie = s.status;
+    if (state.tab === 'profile') render();
+  }, function () { /* status unavailable: the row just shows no status */ });
   // Verification status arrives asynchronously; re-render the Profile tab
   // (if that is where the user is) once it resolves.
   loadVerification().then(function () {

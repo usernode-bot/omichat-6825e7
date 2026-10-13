@@ -26,12 +26,17 @@
     return b;
   }
 
-  // The one verified badge: the app's fuchsia shield-check with its existing
-  // tooltip. Shared by deck cards, like rows and the viewer card, so every
-  // surface that shows a person can show the same word.
+  // The one verified badge: the app's fuchsia shield-check. It is a button:
+  // tapping it (anywhere it appears) opens the "What is verification?"
+  // modal, wired once by delegation on [data-verified-info] in app.js.
+  // pointer-events-auto lets it work inside the card's click-through info
+  // block.
   function VerifiedBadge(cls) {
-    return '<span title="Verified profile" class="text-fuchsia-300">' +
-      icon('shield-check', cls || 'w-5 h-5') + '</span>';
+    return '<button type="button" data-verified-info title="Verified profile" ' +
+      'aria-label="What does Verified mean?" ' +
+      'class="inline-flex align-middle p-1 -m-1 rounded-full text-fuchsia-300 pointer-events-auto ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">' +
+      icon('shield-check', cls || 'w-5 h-5') + '</button>';
   }
 
   function EmptyState(opts) {
@@ -53,6 +58,10 @@
     return wrap;
   }
 
+  function privacySettings() {
+    return window.OmichatSafety.services().privacy.get();
+  }
+
   // Presence line: a green dot plus "Online", or "Active Xm ago" in the
   // muted grey the app's metadata uses. Renders null for profiles with no
   // status so callers add nothing to the layout. The dot is decorative
@@ -62,6 +71,7 @@
   function presenceEl(profile) {
     const info = window.OmichatData.presence(profile);
     if (info.status === 'none') return null;
+    if (privacySettings().hideOnlineStatus) return null;
     const p = document.createElement('p');
     p.dataset.testid = 'presence';
     p.className = 'flex items-center gap-1.5 text-sm ' +
@@ -102,6 +112,10 @@
         '<button type="button" data-photo-next aria-label="Next photo" ' +
         'class="absolute inset-y-0 right-0 w-1/3 z-10 focus-visible:outline-none"></button>' +
         '<div class="absolute top-3 inset-x-0 z-20 flex justify-center gap-1.5 pointer-events-none" data-dots></div>' +
+        '<button type="button" data-card-menu aria-label="More options for ' + profile.name + '" ' +
+        'class="absolute top-2 right-2 z-30 p-2 rounded-full bg-zinc-950/40 text-white hover:bg-zinc-950/60 active:scale-90 transition-all ' +
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">' +
+        icon('ellipsis-vertical', 'w-5 h-5') + '</button>' +
         '<div data-badge="pass" class="absolute top-6 left-5 z-30 -rotate-12 pointer-events-none rounded-xl border-4 border-zinc-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-zinc-100 bg-zinc-900/30 opacity-0">PASS</div>' +
         '<div data-badge="like" class="absolute top-6 right-5 z-30 rotate-12 pointer-events-none rounded-xl border-4 border-sky-400 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-sky-100 bg-zinc-900/30 opacity-0">LIKE</div>' +
         '<div data-badge="super" class="absolute top-14 left-1/2 z-30 -translate-x-1/2 pointer-events-none rounded-xl border-4 border-amber-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-amber-100 bg-zinc-900/30 opacity-0">SUPER LIKE</div>';
@@ -115,9 +129,10 @@
       (profile.age == null ? '' : ', ' + profile.age) + '</h2>' +
       (profile.verified ? VerifiedBadge('w-5 h-5') : '') +
       '</div>' +
-      '<p class="flex items-center gap-1.5 text-sm text-zinc-300">' +
-      icon('map-pin', 'w-4 h-4 text-zinc-400') +
-      '<span>' + (profile.distance == null ? 'Distance unknown' : profile.distance + ' km away') + '</span></p>' +
+      (privacySettings().hideDistance ? '' :
+        '<p class="flex items-center gap-1.5 text-sm text-zinc-300">' +
+        icon('map-pin', 'w-4 h-4 text-zinc-400') +
+        '<span>' + (profile.distance == null ? 'Distance unknown' : profile.distance + ' km away') + '</span></p>') +
       '<p class="text-sm leading-relaxed text-zinc-300 line-clamp-2">' + profile.bio + '</p>' +
       '<div class="flex flex-wrap gap-2 pt-0.5">' +
       profile.interests.map(function (i) {

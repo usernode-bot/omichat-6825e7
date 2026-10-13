@@ -2,6 +2,9 @@
   "name": "Omichat",
   "description": "Swipe, like and chat with people nearby. Phase 1: the Discover deck.",
   "icon": { "emoji": "💬" },
+  "permissions": [
+    { "capability": "camera", "reason": "Takes your selfie for profile verification" }
+  ],
   "secrets": [
     {
       "key": "SMTP_URL",
@@ -63,6 +66,30 @@
       "expectText": "Filters",
       "visual": true,
       "impact": ["public/**"]
+    },
+    {
+      "id": "safety.card-menu",
+      "name": "Profile card has the three-dot menu",
+      "path": "/",
+      "expectSelector": "[data-testid=\"profile-card\"] [data-card-menu]",
+      "visual": true,
+      "impact": ["public/**"]
+    },
+    {
+      "id": "safety.age-gate",
+      "name": "Sign-up shows the 18+ age gate",
+      "path": "/",
+      "expectSelector": "[data-testid=\"age-gate\"]",
+      "expectText": "Confirm your age",
+      "visual": true,
+      "impact": ["public/**"]
+    },
+    {
+      "id": "safety.privacy-row",
+      "name": "Profile lists Privacy and Selfie verification",
+      "path": "/#profile",
+      "expectSelector": "[data-testid=\"selfie-row\"]",
+      "expectText": "Privacy and safety"
     }
   ]
 }
