@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <!-- Omichat featured icon, dark version: the app mark on black, cream ring bubble.
+       Palette: #FFFEEA #FFEE6F #3090E1 #A9CF97 #000000. Render once to PNG: see brand/ICON.md. -->
+  <rect width="1600" height="900" fill="#000000"/>
+  <g transform="translate(416 66) scale(0.75)">
+    <circle cx="460" cy="560" r="250" fill="none" stroke="#FFFEEA" stroke-width="96"/>
+    <polygon points="250,660 360,790 196,884" fill="#FFFEEA"/>
+    <circle cx="700" cy="370" r="170" fill="#000000" stroke="#000000" stroke-width="80"/>
+    <polygon points="790,470 880,620 700,540" fill="#FFEE6F" stroke="#000000" stroke-width="40" stroke-linejoin="round"/>
+    <circle cx="700" cy="370" r="170" fill="#FFEE6F"/>
+  </g>
+  <!-- accent bubbles -->
+  <circle cx="260" cy="240" r="56" fill="#3090E1"/>
+  <circle cx="1340" cy="660" r="44" fill="#A9CF97"/>
+</svg>

@@ -25,6 +25,14 @@ Your profile and verification are stored server-side per Homeroom account
 stored by the platform's file storage; the app keeps only their URLs.
 Swipes and hellos are still in-memory and reset on reload.
 
+## Brand assets
+
+`brand/` holds the Omichat icon (two overlapping speech bubbles forming a
+rounded "O", in Homeroom brand colours) and its sources: `icon.png` is the
+home-screen tile declared in `dapp.json`, `featured-light.png` and
+`featured-dark.png` are the directory featured images. The SVGs are the
+sources; see `brand/ICON.md` for colours, geometry and how to re-render.
+
 ## Run locally
 
 ```sh
