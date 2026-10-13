@@ -113,5 +113,11 @@ Later phases add real profiles, matching and chat.
   profile missing an age or a distance shows only while that filter is
   unset; the deck never guesses a value for missing data. Two mock profiles
   (`Sasha`, `Milo`) exist in `mock-data.js` specifically to exercise this.
+- Safety and Trust (Phase 1 of that roadmap) lives behind one service layer,
+  `public/js/safety.js` (reports, blocks, selfie verification, privacy, age
+  gate), backed by localStorage and mock latency; UI is `safety-ui.js`. Swap
+  it with `OmichatSafety.configure(...)`. Blocks are permanent (no unblock).
+  The age gate stores only the pass/blocked result, never the date of birth.
+  Tests: `npm test`.
 - Keep the frontend component-based (`public/js/components.js`); no
   framework, no new dependencies.
