@@ -1,11 +1,15 @@
-// Omichat Phase 1 app logic: tab routing, the Discover deck and swipe
-// gestures. Swipes live in memory only; the one persisted feature is
-// account verification on the Profile tab (see the verification section).
+// Omichat app logic: tab routing, the Discover deck and swipe gestures, the
+// full profile screen and Edit Profile. Swipes live in memory only; the
+// persisted features are account verification and the viewer's own profile
+// on the Profile tab.
 //
-// Swipe contract: drag right = Like, left = Pass, up = Super Like. The card
-// tracks the finger 1:1 with a slight rotation, the LIKE / PASS /
-// SUPER LIKE badges fade in with the drag, and a committed swipe animates
-// the card off-screen before the next profile shows.
+// Swipe contract: drag right = Say hi, left = Skip. The card tracks the
+// finger 1:1 with a slight rotation, the SAY HI / SKIP stamps fade in with
+// the drag, and a committed swipe animates the card off-screen before the
+// next profile shows. Tapping the card's details opens the full profile.
+//
+// Routes: #discover, #discover/<id> (full profile), #hellos, #connections,
+// #messages, #profile, #profile/edit, #profile/preview.
 (function () {
   'use strict';
 
@@ -115,12 +119,18 @@
 
   const state = {
     tab: 'discover',
+    // Sub-screen within the tab: null, { kind: 'person', id },
+    // { kind: 'edit' } or { kind: 'preview' }.
+    view: null,
     deck: shuffle(Data.PROFILES.map(function (p) { return p.id; }), DECK_SEED),
     pos: 0,
     photo: 0,
-    liked: new Set(),
-    supers: new Set(),
-    counts: { passes: 0 },
+    hellos: new Set(),
+    counts: { skips: 0 },
+    acted: new Set(),
+    // The viewer's own profile: undefined = loading, null = unavailable
+    // here, else { username, profile } (profile null until first saved).
+    me: undefined,
     // Verification status. undefined = not loaded yet, null = unavailable
     // (no auth here, server unreachable): no card, no badge, never a fake one.
     verification: undefined,
@@ -168,21 +178,37 @@
   // scroll.
   const SCREEN_CLASSES = {
     discover: 'flex-1 min-h-0 overflow-hidden',
-    likes: 'flex-1 min-h-0 overflow-y-auto overscroll-contain',
-    matches: 'flex-1 min-h-0 overflow-y-auto overscroll-contain',
+    hellos: 'flex-1 min-h-0 overflow-y-auto overscroll-contain',
+    connections: 'flex-1 min-h-0 overflow-y-auto overscroll-contain',
     messages: 'flex-1 min-h-0 overflow-y-auto overscroll-contain',
     profile: 'flex-1 min-h-0 overflow-y-auto overscroll-contain',
   };
 
   function render() {
-    screenEl.className = SCREEN_CLASSES[state.tab];
+    // Sub-screens (full profile, edit, preview) manage their own scrolling.
+    screenEl.className = state.view ? 'flex-1 min-h-0 overflow-hidden' : SCREEN_CLASSES[state.tab];
     screenEl.innerHTML = '';
-    if (state.tab === 'discover') renderDiscover();
-    else if (state.tab === 'likes') renderLikes();
-    else if (state.tab === 'matches') renderMatches();
+    if (state.view && state.view.kind === 'person') renderPerson();
+    else if (state.view && state.view.kind === 'edit') renderEdit();
+    else if (state.view && state.view.kind === 'preview') renderPreview();
+    else if (state.tab === 'discover') renderDiscover();
+    else if (state.tab === 'hellos') renderHellos();
+    else if (state.tab === 'connections') renderConnections();
     else if (state.tab === 'messages') renderMessages();
     else renderProfile();
-    UI.renderTabbar(tabbarEl, state.tab, state.liked.size);
+    UI.renderTabbar(tabbarEl, state.tab, state.hellos.size);
+  }
+
+  // The viewer's saved interests, or null while their profile is loading
+  // or unavailable (cards then leave the "in common" line out).
+  function viewerInterests() {
+    if (!state.me) return null;
+    return state.me.profile ? state.me.profile.interests || [] : [];
+  }
+
+  // People skipped or greeted since the deck was last reset.
+  function hasActed(id) {
+    return state.acted.has(id);
   }
 
   // -------------------------------------------------------------- discover
@@ -190,7 +216,7 @@
   function remaining() {
     return state.deck.slice(state.pos).filter(function (id) {
       const p = Data.byId.get(id);
-      return p && !state.blocked.has(id) && matchesFilters(p);
+      return p && !state.blocked.has(id) && matchesFilters(p) && !hasActed(id);
     });
   }
 
@@ -251,7 +277,7 @@
         fill:
           'absolute inset-0 rounded-3xl border border-zinc-800 bg-zinc-900/60 ' +
           'flex flex-col items-center justify-center text-center gap-3 p-6',
-        icon: 'heart',
+        icon: 'compass',
         title: "You've seen everyone nearby.",
         body: "That's everyone within your current filters. Widen them to meet more people.",
         actionLabel: 'Expand Discovery',
@@ -259,6 +285,7 @@
           state.deck = shuffle(Data.PROFILES.map(function (p) { return p.id; }), DECK_SEED);
           state.pos = 0;
           state.photo = 0;
+          state.acted = new Set();
           toast('Showing everyone nearby again');
           render();
         },
@@ -268,8 +295,8 @@
 
     const top = Data.byId.get(next[0]);
     const under = next[1] ? Data.byId.get(next[1]) : null;
-    if (under) deckEl.append(UI.ProfileCard(under, { behind: true }));
-    const card = UI.ProfileCard(top, {});
+    if (under) deckEl.append(UI.ProfileCard(under, { behind: true, viewerInterests: viewerInterests() }));
+    const card = UI.ProfileCard(top, { viewerInterests: viewerInterests() });
     deckEl.append(card);
     attachDrag(card, top);
     renderActions(actions);
@@ -289,15 +316,11 @@
   function renderActions(actions) {
     actions.innerHTML = '';
     actions.append(
-      actionButton('pass', 'x', 'Pass',
+      actionButton('skip', 'x', 'Skip',
         'w-14 h-14 rounded-full border border-zinc-600 text-zinc-300 bg-zinc-900/60 ' +
         'hover:border-zinc-400 hover:text-white hover:scale-105 active:scale-90 ' +
         'transition-all duration-150', 'w-7 h-7'),
-      actionButton('super', 'star', 'Super Like',
-        'w-12 h-12 rounded-full border border-amber-400/70 text-amber-300 bg-zinc-900/60 ' +
-        'hover:border-amber-300 hover:text-amber-200 hover:scale-105 active:scale-90 ' +
-        'transition-all duration-150', 'w-6 h-6'),
-      actionButton('like', 'heart', 'Like',
+      actionButton('hi', 'hand', 'Say hi',
         'w-14 h-14 rounded-full bg-gradient-to-br from-sky-500 to-indigo-600 text-white ' +
         'shadow-lg shadow-sky-600/30 hover:scale-105 active:scale-90 ' +
         'transition-all duration-150', 'w-7 h-7')
@@ -332,30 +355,20 @@
   function attachDrag(card, profile) {
     let sx = 0, sy = 0, dx = 0, dy = 0, pid = null, active = false, moved = false;
     const badges = {
-      like: card.querySelector('[data-badge="like"]'),
-      pass: card.querySelector('[data-badge="pass"]'),
-      super: card.querySelector('[data-badge="super"]'),
+      hi: card.querySelector('[data-badge="hi"]'),
+      skip: card.querySelector('[data-badge="skip"]'),
     };
 
-    function superActive() {
-      return dy < -40 && Math.abs(dy) > Math.abs(dx) * 1.2;
-    }
-
     function apply() {
-      const up = superActive();
       const rot = clamp(dx / 16, -14, 14);
-      card.style.transform = up
-        ? 'translate3d(' + dx * 0.25 + 'px, ' + dy + 'px, 0) rotate(0deg)'
-        : 'translate3d(' + dx + 'px, ' + dy + 'px, 0) rotate(' + rot + 'deg)';
-      badges.like.style.opacity = up ? 0 : clamp((dx - 24) / 80, 0, 1);
-      badges.pass.style.opacity = up ? 0 : clamp((-dx - 24) / 80, 0, 1);
-      badges.super.style.opacity = up ? clamp((-dy - 30) / 70, 0, 1) : 0;
+      card.style.transform = 'translate3d(' + dx + 'px, ' + dy + 'px, 0) rotate(' + rot + 'deg)';
+      badges.hi.style.opacity = clamp((dx - 24) / 80, 0, 1);
+      badges.skip.style.opacity = clamp((-dx - 24) / 80, 0, 1);
     }
 
     function resetBadges() {
-      badges.like.style.opacity = 0;
-      badges.pass.style.opacity = 0;
-      badges.super.style.opacity = 0;
+      badges.hi.style.opacity = 0;
+      badges.skip.style.opacity = 0;
     }
 
     card.addEventListener('pointerdown', function (e) {
@@ -385,9 +398,8 @@
       if (!active || e.pointerId !== pid) return;
       active = false;
       if (!cancelled && moved) {
-        if (dx > 110) { suppressClick = true; return commit('like'); }
-        if (dx < -110) { suppressClick = true; return commit('pass'); }
-        if (superActive() && dy < -140) { suppressClick = true; return commit('super'); }
+        if (dx > 110) { suppressClick = true; return commit('hi'); }
+        if (dx < -110) { suppressClick = true; return commit('skip'); }
       }
       resetBadges();
       if (moved) {
@@ -418,6 +430,9 @@
       } else if (e.target.closest('[data-dot-index]')) {
         state.photo = Number(e.target.closest('[data-dot-index]').dataset.dotIndex);
       } else {
+        // Anywhere else on the card (the middle of the photo, the details)
+        // opens the full profile.
+        location.hash = '#discover/' + profile.id;
         return;
       }
       setPhoto(card, profile, state.photo);
@@ -432,11 +447,9 @@
     committing = true;
 
     const w = deckEl.clientWidth;
-    const h = deckEl.clientHeight;
     const targets = {
-      like: 'translate3d(' + w * 1.5 + 'px, -40px, 0) rotate(30deg)',
-      pass: 'translate3d(' + -w * 1.5 + 'px, -40px, 0) rotate(-30deg)',
-      super: 'translate3d(0, ' + -h * 1.6 + 'px, 0) rotate(0deg)',
+      hi: 'translate3d(' + w * 1.5 + 'px, -40px, 0) rotate(30deg)',
+      skip: 'translate3d(' + -w * 1.5 + 'px, -40px, 0) rotate(-30deg)',
     };
 
     const badge = card.querySelector('[data-badge="' + action + '"]');
@@ -445,35 +458,64 @@
       ? 'none'
       : 'transform 340ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 340ms ease-in';
     card.style.transform = REDUCED ? 'none' : targets[action];
-    if (!REDUCED && action !== 'super') card.style.opacity = '0';
+    if (!REDUCED) card.style.opacity = '0';
 
-    if (action === 'like') {
-      state.liked.add(profile.id);
-    } else if (action === 'super') {
-      state.supers.add(profile.id);
-      state.liked.add(profile.id);
-      toast('Super Like sent to ' + profile.name);
-    } else {
-      state.counts.passes++;
-    }
+    record(profile, action);
 
     setTimeout(function () {
       committing = false;
       state.photo = 0;
-      state.pos++;
       render();
     }, REDUCED ? 0 : 350);
   }
 
+  // Records Skip or Say hi. The deck drops acted-on people (see remaining),
+  // so this works for the top card and for a profile opened by link alike.
+  function record(profile, action) {
+    state.acted.add(profile.id);
+    if (action === 'hi') {
+      state.hellos.add(profile.id);
+      toast('You said hi to ' + profile.name);
+    } else {
+      state.counts.skips++;
+    }
+  }
+
   // Keyboard support for desktop: arrows mirror the three actions.
   document.addEventListener('keydown', function (e) {
-    if (filtersOpen || SafetyUI.busy()) return;
+    if (filtersOpen || state.view || SafetyUI.busy()) return;
     if (state.tab !== 'discover' || committing || !currentProfile()) return;
     if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
-    if (e.key === 'ArrowLeft') commit('pass');
-    else if (e.key === 'ArrowRight') commit('like');
-    else if (e.key === 'ArrowUp') commit('super');
+    if (e.key === 'ArrowLeft') commit('skip');
+    else if (e.key === 'ArrowRight') commit('hi');
   });
+
+  // ------------------------------------------------------------ full profile
+
+  function renderPerson() {
+    const p = Data.byId.get(state.view.id);
+    if (!p) {
+      const wrap = document.createElement('div');
+      wrap.className = 'h-full flex';
+      wrap.append(UI.EmptyState({
+        icon: 'user',
+        title: 'Profile not found',
+        body: 'This person is no longer on Discover.',
+        actionLabel: 'Back to Discover',
+        onAction: go('discover'),
+      }));
+      screenEl.append(wrap);
+      return;
+    }
+    screenEl.append(window.OmichatProfileView.build(p, {
+      viewerInterests: viewerInterests(),
+      onBack: go('discover'),
+      onAction: function (action) {
+        record(p, action);
+        location.hash = '#discover';
+      },
+    }));
+  }
 
   // ------------------------------------------------------------ filters sheet
 
@@ -646,58 +688,58 @@
     if (secondary.textContent) row.querySelector('.flex-1').append(secondary);
     const b = document.createElement('button');
     b.type = 'button';
-    b.setAttribute('aria-label', 'Remove like');
+    b.setAttribute('aria-label', 'Undo hi');
     b.className =
       'p-2 rounded-full text-zinc-500 hover:text-sky-300 hover:bg-zinc-800 ' +
       'active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
     b.innerHTML = icon('undo', 'w-5 h-5');
     b.addEventListener('click', function () {
-      state.liked.delete(p.id);
+      state.hellos.delete(p.id);
       render();
     });
     row.append(b);
     return row;
   }
 
-  function renderLikes() {
+  function renderHellos() {
     const section = document.createElement('section');
-    section.dataset.screen = 'likes';
+    section.dataset.screen = 'hellos';
     section.className = 'h-full flex flex-col';
     section.innerHTML =
-      '<h1 class="px-4 pt-4 pb-2 text-xl font-bold text-zinc-100">Likes</h1>';
+      '<h1 class="px-4 pt-4 pb-2 text-xl font-bold text-zinc-100">Hellos</h1>';
     const list = document.createElement('div');
     list.className = 'px-4 pb-4 flex flex-col gap-2';
     section.append(list);
     screenEl.append(section);
-    const likedProfiles = Data.PROFILES.filter(function (p) {
-      return state.liked.has(p.id) && !state.blocked.has(p.id);
+    const greeted = Data.PROFILES.filter(function (p) {
+      return state.hellos.has(p.id) && !state.blocked.has(p.id);
     });
-    if (!likedProfiles.length) {
+    if (!greeted.length) {
       list.className = 'flex-1 flex';
       list.append(UI.EmptyState({
-        icon: 'heart',
-        title: 'No likes yet',
-        body: 'People you Like are saved here. Head to Discover to find someone.',
+        icon: 'hand',
+        title: 'No hellos yet',
+        body: 'People you say hi to are saved here. Head to Discover to find someone who shares your interests.',
         actionLabel: 'Explore Discover',
         onAction: go('discover'),
       }));
       return;
     }
-    likedProfiles.forEach(function (p) { list.append(likeRow(p)); });
+    greeted.forEach(function (p) { list.append(likeRow(p)); });
   }
 
-  function renderMatches() {
+  function renderConnections() {
     const section = document.createElement('section');
-    section.dataset.screen = 'matches';
+    section.dataset.screen = 'connections';
     section.className = 'h-full flex flex-col';
     section.innerHTML =
-      '<h1 class="px-4 pt-4 pb-2 text-xl font-bold text-zinc-100">Matches</h1>';
+      '<h1 class="px-4 pt-4 pb-2 text-xl font-bold text-zinc-100">Connections</h1>';
     const wrap = document.createElement('div');
     wrap.className = 'flex-1 flex';
     wrap.append(UI.EmptyState({
-      icon: 'sparkles',
-      title: 'No matches yet',
-      body: 'When someone you Like Likes you back, your match shows up here.',
+      icon: 'users',
+      title: 'No connections yet',
+      body: 'When someone you say hi to says hi back, you connect and they show up here.',
       actionLabel: 'Start swiping',
       onAction: go('discover'),
     }));
@@ -721,7 +763,7 @@
       list.append(UI.EmptyState({
         icon: 'message-circle',
         title: 'No messages yet',
-        body: 'Matches open a chat. Your conversations will live here.',
+        body: 'Connections open a chat. Your conversations will live here.',
         actionLabel: 'Open Discover',
         onAction: go('discover'),
       }));
@@ -736,8 +778,8 @@
   // A message thread row. Colour coding: the sender's colour (their photo
   // gradient's first stop) rings the avatar, colours the name and the
   // unread dot; the message kind styles the preview line — your messages
-  // get the accent "You:" prefix, a Super Like is gold, and a match is a
-  // system notice.
+  // get the accent "You:" prefix, a hi carries a wave mark, and a
+  // connection is a system notice.
   function threadRow(p, thread) {
     const last = thread.last;
     const row = document.createElement('button');
@@ -766,11 +808,12 @@
   }
 
   function previewHtml(p, last) {
-    if (last.kind === 'superlike') {
-      return '<p class="text-sm text-amber-300 font-medium flex items-center gap-1.5 truncate">' +
-        icon('star', 'w-4 h-4 shrink-0') + '<span class="truncate">' + escapeHtml(last.text) + '</span></p>';
+    if (last.kind === 'hi') {
+      return '<p class="text-sm text-zinc-200 font-medium flex items-center gap-1.5 truncate">' +
+        '<span class="text-sky-300 shrink-0">' + icon('hand', 'w-4 h-4') + '</span>' +
+        '<span class="truncate">' + escapeHtml(last.text) + '</span></p>';
     }
-    if (last.kind === 'match') {
+    if (last.kind === 'connection') {
       return '<p class="text-sm text-zinc-300 flex items-center gap-1.5 truncate">' +
         '<span class="text-sky-300 shrink-0">' + icon('sparkles', 'w-4 h-4') + '</span>' +
         '<span class="truncate">' + escapeHtml(last.text) + '</span></p>';
@@ -1073,8 +1116,8 @@
     return row;
   }
 
-  async function downscaleImage(file) {
-    const MAX = 1024;
+  async function downscaleImage(file, maxSide) {
+    const MAX = maxSide || 1024;
     let bitmap;
     try {
       bitmap = await createImageBitmap(file);
@@ -1202,30 +1245,108 @@
     return row;
   }
 
+  // ---------------------------------------------------------------- profile
+
+  // Asks the server even without a URL token: at the app's own address the
+  // platform's edge signs the request in with a header instead.
+  async function loadProfile() {
+    try {
+      const r = await api('/api/profile');
+      if (!r.ok) throw new Error('status ' + r.status);
+      state.me = await r.json();
+    } catch (err) {
+      // Unavailable here: no profile screen pretends to have saved anything.
+      state.me = null;
+    }
+  }
+
+  function myVerified() {
+    return !!(state.verification && state.verification.tier !== 'unverified');
+  }
+
+  // The viewer's saved profile as the full-profile screen expects it.
+  function myProfileForView(profile) {
+    const p = Object.assign(window.OmichatSchema.empty(), profile || {});
+    if (!p.name) p.name = (state.me && state.me.username) || 'You';
+    return p;
+  }
+
   const SELFIE_LABELS = { pending: 'Pending review', verified: 'Verified', rejected: 'Declined' };
 
   function renderProfile() {
-    const v = Data.VIEWER;
     const section = document.createElement('section');
     section.dataset.screen = 'profile';
     section.className = 'px-4 py-4 flex flex-col gap-4';
-    section.innerHTML =
-      '<div class="rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900">' +
+
+    const me = state.me;
+    const profile = me && me.profile;
+    const card = document.createElement('div');
+    card.dataset.testid = 'my-profile';
+    card.className = 'rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900';
+    card.innerHTML =
       '<div class="h-24 bg-gradient-to-r from-sky-600/40 to-indigo-600/40"></div>' +
-      '<div class="px-5 pb-5 -mt-8">' +
-      '<img src="' + v.photo + '" alt="" class="w-16 h-16 rounded-full object-cover border-4 border-zinc-900 bg-zinc-800">' +
-      '<div class="flex items-center gap-2 mt-2">' +
-      '<h2 class="text-xl font-bold text-zinc-100">' + v.name + ', ' + v.age + '</h2>' +
-      // Real verification status only: unavailable or unverified shows no badge.
-      ((state.verification && state.verification.tier !== 'unverified') || state.selfie === 'verified'
-        ? UI.VerifiedBadge('w-5 h-5') : '') +
-      '</div>' +
-      '<p class="text-sm text-zinc-400 mt-1">' + escapeHtml(v.bio) + '</p>' +
-      '<div class="grid grid-cols-3 gap-2 mt-4 text-center">' +
-      '<div class="rounded-2xl bg-zinc-800/60 py-3"><p class="text-lg font-bold text-zinc-100">' + state.liked.size + '</p><p class="text-xs text-zinc-400">Likes sent</p></div>' +
-      '<div class="rounded-2xl bg-zinc-800/60 py-3"><p class="text-lg font-bold text-zinc-100">' + state.counts.passes + '</p><p class="text-xs text-zinc-400">Passes</p></div>' +
-      '<div class="rounded-2xl bg-zinc-800/60 py-3"><p class="text-lg font-bold text-zinc-100">' + state.supers.size + '</p><p class="text-xs text-zinc-400">Super Likes</p></div>' +
-      '</div></div></div>';
+      '<div class="px-5 pb-5 -mt-8 flex flex-col" data-body></div>';
+    const body = card.querySelector('[data-body]');
+
+    const main = profile && profile.photos && profile.photos[0];
+    if (main) {
+      const img = document.createElement('img');
+      img.src = UI.photoSrc(main);
+      img.alt = '';
+      img.className = 'w-16 h-16 rounded-full object-cover border-4 border-zinc-900 bg-zinc-800';
+      body.append(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'w-16 h-16 rounded-full border-4 border-zinc-900 bg-zinc-800 text-zinc-500 flex items-center justify-center';
+      ph.innerHTML = icon('user', 'w-7 h-7');
+      body.append(ph);
+    }
+
+    const nameRow = document.createElement('div');
+    nameRow.className = 'flex items-center gap-2 mt-2';
+    const h2 = document.createElement('h2');
+    h2.className = 'text-xl font-bold text-zinc-100';
+    if (me === undefined) h2.textContent = 'Loading your profile...';
+    else if (!me) h2.textContent = 'Your profile';
+    else {
+      const name = (profile && profile.name) || me.username || 'You';
+      h2.textContent = name + (profile && profile.age != null ? ', ' + profile.age : '');
+    }
+    nameRow.append(h2);
+    // Real verification status only: unavailable or unverified shows no badge.
+    if (myVerified() || state.selfie === 'verified') nameRow.insertAdjacentHTML('beforeend', UI.VerifiedBadge('w-5 h-5'));
+    body.append(nameRow);
+
+    const bio = document.createElement('p');
+    bio.className = 'text-sm mt-1 ' + (profile && profile.bio ? 'text-zinc-400 line-clamp-3' : 'text-zinc-500');
+    if (me === null) bio.textContent = 'Profile editing is not available here. Open Omichat inside Homeroom to edit your profile.';
+    else if (me === undefined) bio.textContent = '';
+    else bio.textContent = (profile && profile.bio) || 'No bio yet. Tell people what you are into.';
+    body.append(bio);
+
+    if (me) {
+      const meter = document.createElement('div');
+      meter.className = 'mt-4';
+      meter.append(window.OmichatProfileEdit.CompletenessMeter(
+        window.OmichatSchema.completeness(profile)));
+      body.append(meter);
+
+      const buttons = document.createElement('div');
+      buttons.className = 'flex items-center gap-2 mt-4';
+      const edit = UI.Button('Edit profile', { onClick: function () { location.hash = '#profile/edit'; } });
+      edit.dataset.testid = 'edit-profile-button';
+      const preview = UI.Button('Preview', { variant: 'outline', onClick: function () { location.hash = '#profile/preview'; } });
+      buttons.append(edit, preview);
+      body.append(buttons);
+    }
+
+    const stats = document.createElement('div');
+    stats.className = 'grid grid-cols-2 gap-2 mt-4 text-center';
+    stats.innerHTML =
+      '<div class="rounded-2xl bg-zinc-800/60 py-3"><p class="text-lg font-bold text-zinc-100">' + state.hellos.size + '</p><p class="text-xs text-zinc-400">Hellos sent</p></div>' +
+      '<div class="rounded-2xl bg-zinc-800/60 py-3"><p class="text-lg font-bold text-zinc-100">' + state.counts.skips + '</p><p class="text-xs text-zinc-400">Skipped</p></div>';
+    body.append(stats);
+    section.append(card);
 
     const rowsEl = document.createElement('div');
     rowsEl.className = 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden';
@@ -1262,11 +1383,97 @@
     screenEl.append(section);
   }
 
+  // Edit Profile needs the saved profile first; until then it shows a
+  // loading or unavailable state rather than an empty form that could
+  // overwrite real data.
+  function renderEdit() {
+    const wrap = document.createElement('div');
+    wrap.className = 'h-full flex';
+    if (state.me === undefined) {
+      wrap.append(UI.EmptyState({ icon: 'user', title: 'Loading your profile', body: 'One moment.' }));
+      screenEl.append(wrap);
+      return;
+    }
+    if (!state.me) {
+      wrap.append(UI.EmptyState({
+        icon: 'user',
+        title: 'Profile editing is not available here',
+        body: 'Open Omichat inside Homeroom to edit your profile.',
+        actionLabel: 'Back to Profile',
+        onAction: go('profile'),
+      }));
+      screenEl.append(wrap);
+      return;
+    }
+    const screen = window.OmichatProfileEdit.build({
+      me: state.me,
+      save: function (profile) {
+        return api('/api/profile', { method: 'PUT', body: { profile: profile } });
+      },
+      downscale: function (file) { return downscaleImage(file, 1280); },
+      toast: toast,
+      onDone: function (me) {
+        state.me = me;
+        location.hash = '#profile';
+      },
+      onCancel: go('profile'),
+      onPreview: function (draft) { openPreviewOverlay(draft); },
+    });
+    screenEl.append(screen);
+    if (window.unNative && typeof window.unNative.attachKeyboardAvoidance === 'function' && screen.scroller) {
+      window.unNative.attachKeyboardAvoidance(screen.scroller);
+    }
+  }
+
+  function renderPreview() {
+    if (!state.me) { state.view = null; render(); return; }
+    screenEl.append(window.OmichatProfileView.build(myProfileForView(state.me.profile), {
+      testid: 'profile-preview',
+      verified: myVerified(),
+      backLabel: 'Profile',
+      onBack: go('profile'),
+    }));
+  }
+
+  // Preview from inside Edit Profile: an overlay above the form, so the
+  // unsaved draft stays exactly as it was when the person comes back.
+  function openPreviewOverlay(draft) {
+    const overlay = document.createElement('div');
+    overlay.className = 'fixed inset-0 z-40 bg-zinc-950 flex justify-center';
+    overlay.style.paddingTop = 'var(--un-safe-inset-top, env(safe-area-inset-top, 0px))';
+    overlay.style.paddingBottom = 'var(--un-safe-inset-bottom, env(safe-area-inset-bottom, 0px))';
+    const inner = document.createElement('div');
+    inner.className = 'w-full max-w-md h-full';
+    const close = function () { overlay.remove(); document.removeEventListener('keydown', onKey); };
+    const onKey = function (e) { if (e.key === 'Escape') close(); };
+    inner.append(window.OmichatProfileView.build(myProfileForView(draft), {
+      testid: 'profile-preview',
+      verified: myVerified(),
+      backLabel: 'Back to editing',
+      onBack: close,
+    }));
+    overlay.append(inner);
+    document.body.append(overlay);
+    document.addEventListener('keydown', onKey);
+    const back = overlay.querySelector('[data-back]');
+    if (back) back.focus({ preventScroll: true });
+  }
+
   // ------------------------------------------------------------- bootstrap
 
+  // Old tab names keep working for links shared before the rename.
+  const TAB_ALIASES = { likes: 'hellos', matches: 'connections' };
+
   function route() {
-    const h = location.hash.replace('#', '');
+    const parts = location.hash.replace('#', '').split('/');
+    const h = TAB_ALIASES[parts[0]] || parts[0];
     state.tab = UI.TABS.some(function (t) { return t.id === h; }) ? h : 'discover';
+    state.view = null;
+    if (state.tab === 'discover' && /^\d+$/.test(parts[1] || '')) {
+      state.view = { kind: 'person', id: Number(parts[1]) };
+    } else if (state.tab === 'profile' && (parts[1] === 'edit' || parts[1] === 'preview')) {
+      state.view = { kind: parts[1] };
+    }
     render();
   }
 
@@ -1279,7 +1486,7 @@
     // safety state and redraw whatever screen is up.
     onChange: function () {
       state.blocked = new Set(Safety.services().blocks.list());
-      state.blocked.forEach(function (id) { state.liked.delete(id); });
+      state.blocked.forEach(function (id) { state.hellos.delete(id); });
       Safety.services().verification.getStatus().then(function (s) {
         state.selfie = s.status;
         render();
@@ -1314,6 +1521,12 @@
   // Verification status arrives asynchronously; re-render the Profile tab
   // (if that is where the user is) once it resolves.
   loadVerification().then(function () {
-    if (state.tab === 'profile') render();
+    if (state.tab === 'profile' && !document.querySelector('[data-testid="edit-profile"]')) render();
+  });
+  // The viewer's profile drives Edit Profile, the completeness meter and
+  // the "in common" line on Discover cards. Never re-render over an open
+  // Edit Profile form.
+  loadProfile().then(function () {
+    if (!document.querySelector('[data-testid="edit-profile"]')) render();
   });
 })();

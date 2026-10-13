@@ -1,4 +1,4 @@
-// Omichat Phase 1 mock data.
+// Omichat mock data.
 //
 // Everything here is mock: profiles, distances, verification flags. No
 // backend, matching or persistence yet. Profile "photos" are generated SVG
@@ -52,81 +52,159 @@ window.OmichatData = (function () {
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
+  // Full mock profiles. Interests come from the predefined list in
+  // profile-schema.js so "N interests in common" compares like with like.
+  // `photoCount` varies (1 to 6) so the gallery shows every size.
   const RAW = [
     {
       id: 1, seed: 1, name: 'Maya', age: 26, verified: true, distance: 3,
-      lastActiveMin: 0,
-      bio: 'Ceramics studio on weekends and the worst movie taste you will ever meet.',
-      interests: ['Ceramics', 'Jazz', 'Street food'],
+      lastActiveMin: 0, photoCount: 6,
+      bio: 'Ceramics studio on weekends and the worst movie taste you will ever meet. ' +
+        'I am usually covered in clay dust, hunting for the next street food stall, or ' +
+        'dragging someone to a jazz night they swore they would not enjoy. New to the ' +
+        'neighbourhood and looking for people to explore it with.',
+      job: 'Ceramicist', education: 'Fine Arts, City College',
+      lookingFor: 'friends',
+      interests: ['Ceramics', 'Jazz', 'Street food', 'Film', 'Coffee'],
+      prompts: [
+        { prompt: 'A fact about me that surprises people...', answer: 'I have thrown over 400 mugs and kept exactly three.' },
+        { prompt: "I'm looking for someone to join me for...", answer: 'Sunday morning flea markets, then dumplings.' },
+      ],
+      instagram: 'maya.makes.mugs', spotify: null,
     },
     {
       id: 2, seed: 2, name: 'Zoe', age: 24, verified: false, distance: 5,
-      lastActiveMin: 3,
-      bio: 'Bike mechanic by day, questionable karaoke by night.',
-      interests: ['Cycling', 'Karaoke', 'Thrift finds'],
+      lastActiveMin: 3, photoCount: 3,
+      bio: 'Bike mechanic by day, questionable karaoke by night. Always up for a long ride ' +
+        'out of town if there is a bakery at the end of it.',
+      job: 'Bike mechanic', education: null,
+      lookingFor: 'activity',
+      interests: ['Cycling', 'Karaoke', 'Thrift finds', 'Baking'],
+      prompts: [
+        { prompt: 'A skill I could teach you...', answer: 'Fixing a flat in under five minutes.' },
+      ],
+      instagram: null, spotify: 'zoe_rides',
     },
     {
       id: 3, seed: 3, name: 'Priya', age: 29, verified: true, distance: 2,
-      lastActiveMin: 12,
-      bio: 'ER nurse. Ask me about the strangest thing I have ever x-rayed.',
-      interests: ['Running', 'Cooking', 'Podcasts'],
+      lastActiveMin: 12, photoCount: 4,
+      bio: 'ER nurse. Ask me about the strangest thing I have ever x-rayed. Training for ' +
+        'my first half marathon and looking for a running group that does not start at 5am.',
+      job: 'ER nurse', education: 'Nursing, State University',
+      lookingFor: 'activity',
+      interests: ['Running', 'Cooking', 'Podcasts', 'Hiking'],
+      prompts: [
+        { prompt: 'A perfect weekend looks like...', answer: 'A long run, a longer brunch, a podcast and a nap.' },
+        { prompt: 'My go-to comfort food...', answer: 'My grandmother\'s dal. I am still not allowed the recipe.' },
+        { prompt: 'Ask me about...', answer: 'The best trail within an hour of the city.' },
+      ],
+      instagram: 'priya.runs', spotify: 'priyaplaylists',
     },
     {
       id: 4, seed: 4, name: 'Jonas', age: 31, verified: false, distance: 7,
-      lastActiveMin: 45,
-      bio: 'I build synthesizers that mostly work. Coffee first, opinions after.',
-      interests: ['Synths', 'Board games', 'Coffee'],
+      lastActiveMin: 45, photoCount: 2,
+      bio: 'I build synthesizers that mostly work. Coffee first, opinions after. Hosting a ' +
+        'monthly board game night and always short of players.',
+      job: 'Sound engineer', education: 'Electronics, Technical Institute',
+      lookingFor: 'hobby',
+      interests: ['Synths', 'Board games', 'Coffee', 'Coding'],
+      prompts: [
+        { prompt: "I'm currently learning...", answer: 'How to solder without burning my thumb.' },
+      ],
+      instagram: null, spotify: null,
     },
     {
       id: 5, seed: 5, name: 'Amara', age: 27, verified: true, distance: 4,
-      lastActiveMin: 25,
-      bio: 'Botanical garden regular. Yes, my monstera has a name.',
-      interests: ['Plants', 'Yoga', 'Galleries'],
+      lastActiveMin: 25, photoCount: 5,
+      bio: 'Botanical garden regular. Yes, my monstera has a name. Looking for a yoga buddy ' +
+        'and someone who will come to gallery openings for the free snacks.',
+      job: 'Landscape designer', education: 'Horticulture, Botanical Academy',
+      lookingFor: 'friends',
+      interests: ['Plants', 'Yoga', 'Galleries', 'Gardening', 'Photography'],
+      prompts: [
+        { prompt: 'The last thing I got excited about...', answer: 'A cutting that finally grew roots.' },
+        { prompt: "A hobby I'd love to pick up...", answer: 'Film photography. I already own the camera.' },
+      ],
+      instagram: 'amara.grows', spotify: null,
     },
     {
       id: 6, seed: 6, name: 'Felix', age: 25, verified: false, distance: 6,
-      lastActiveMin: 6,
-      bio: 'Line cook. I will feed you and I will talk about it the whole time.',
-      interests: ['Cooking', 'Vinyl', 'Hiking'],
+      lastActiveMin: 6, photoCount: 3,
+      bio: 'Line cook. I will feed you and I will talk about it the whole time. Weekends are ' +
+        'for hiking and record shops.',
+      job: 'Line cook', education: 'Culinary School',
+      lookingFor: 'activity',
+      interests: ['Cooking', 'Vinyl', 'Hiking', 'Street food'],
+      prompts: [
+        { prompt: 'A skill I could teach you...', answer: 'Knife skills. Mind your fingers.' },
+      ],
+      instagram: null, spotify: 'felixspins',
     },
     {
       id: 7, seed: 7, name: 'Noor', age: 30, verified: true, distance: 3,
-      lastActiveMin: 180,
-      bio: 'Architect. I judge buildings quietly and slouch less than I should.',
-      interests: ['Design', 'Swimming', 'Film'],
+      lastActiveMin: 180, photoCount: 4,
+      bio: 'Architect. I judge buildings quietly and slouch less than I should. Swimming laps ' +
+        'three times a week and always looking for someone to see a film with afterwards.',
+      job: 'Architect', education: 'Architecture, Polytechnic',
+      lookingFor: 'friends',
+      interests: ['Design', 'Swimming', 'Film', 'Photography', 'Travel'],
+      prompts: [
+        { prompt: 'Ask me about...', answer: 'The ugliest building in the city. I have a list.' },
+      ],
+      instagram: 'noor.draws.lines', spotify: null,
     },
     {
       id: 8, seed: 8, name: 'Theo', age: 28, verified: false, distance: 8,
-      lastActiveMin: 1,
-      bio: 'Dog dad to a very loud beagle named Waffle.',
-      interests: ['Dogs', 'Bouldering', 'Podcasts'],
+      lastActiveMin: 1, photoCount: 2,
+      bio: 'Dog dad to a very loud beagle named Waffle. Bouldering most evenings.',
+      job: 'Physio', education: null,
+      lookingFor: 'activity',
+      interests: ['Dogs', 'Bouldering', 'Podcasts', 'Hiking'],
+      prompts: [],
+      instagram: null, spotify: null,
     },
     {
       id: 9, seed: 9, name: 'Ines', age: 26, verified: true, distance: 5,
-      lastActiveMin: 18,
-      bio: 'Translator. Fluent in sarcasm and three actual languages.',
-      interests: ['Books', 'Cinema', 'Languages'],
+      lastActiveMin: 18, photoCount: 3,
+      bio: 'Translator. Fluent in sarcasm and three actual languages. Running a small ' +
+        'language exchange on Thursdays, all levels welcome.',
+      job: 'Translator', education: 'Linguistics, University of Porto',
+      lookingFor: 'study',
+      interests: ['Books', 'Film', 'Languages', 'Writing', 'Travel', 'Coffee'],
+      prompts: [
+        { prompt: "I'm looking for someone to join me for...", answer: 'A reading group that actually finishes the book.' },
+        { prompt: 'A fact about me that surprises people...', answer: 'I learned English from cooking shows.' },
+      ],
+      instagram: null, spotify: 'ines.reads',
     },
-    // Two profiles deliberately omit an age or a distance. The discovery
-    // filters never guess a value for a missing field: these stay visible
-    // only while the matching filter is unset, which keeps the "profile
-    // without data" path real instead of theoretical.
+    // Two sparse profiles. Sasha has no age and Milo no distance (the
+    // discovery filters never guess a value for a missing field), and both
+    // skip most of the optional fields so the full profile's empty states
+    // stay real instead of theoretical.
     {
       id: 10, seed: 10, name: 'Sasha', age: null, verified: false, distance: 4,
+      photoCount: 1,
       bio: 'Night-shift baker. I trade pastries for good playlist recommendations.',
+      job: null, education: null, lookingFor: null,
       interests: ['Baking', 'Vinyl', 'Swimming'],
+      prompts: [], instagram: null, spotify: null,
     },
     {
       id: 11, seed: 11, name: 'Milo', age: 33, verified: true, distance: null,
-      bio: 'Cartographer. Yes, that is still a job. No, not the paper kind.',
-      interests: ['Maps', 'Board games', 'Coffee'],
+      photoCount: 2,
+      bio: '',
+      job: 'Cartographer', education: null, lookingFor: 'hobby',
+      interests: [],
+      prompts: [], instagram: null, spotify: null,
     },
   ];
 
   const PROFILES = RAW.map(function (p) {
     const base = p.seed * 7;
+    const photos = [];
+    for (let i = 1; i <= p.photoCount; i++) photos.push(photo(base + i));
     return Object.assign({}, p, {
-      photos: [photo(base + 1), photo(base + 2), photo(base + 3)],
+      photos: photos,
       // First colour of the profile's photo gradient. The message list uses
       // it as the sender's colour so a thread always matches its avatar.
       accent: PALETTES[p.seed % PALETTES.length][0],
@@ -138,7 +216,7 @@ window.OmichatData = (function () {
   // Mock message threads. Like everything else in Phase 1 these are static
   // demo data so the Messages tab has something to show before matching and
   // chat arrive. `last` is the preview row; `at` is a relative label, not a
-  // timestamp. kinds: 'text' (from either side), 'superlike' and 'match'
+  // timestamp. kinds: 'text' (from either side), 'hi' and 'connection'
   // (system messages).
   const THREADS = [
     {
@@ -149,7 +227,7 @@ window.OmichatData = (function () {
     {
       profileId: 2,
       unread: 0,
-      last: { kind: 'match', from: 'system', text: 'You matched with Zoe', at: '5h' },
+      last: { kind: 'connection', from: 'system', text: 'You connected with Zoe', at: '5h' },
     },
     {
       profileId: 4,
@@ -159,17 +237,9 @@ window.OmichatData = (function () {
     {
       profileId: 5,
       unread: 1,
-      last: { kind: 'superlike', from: 'them', text: 'Amara Super Liked you', at: '2d' },
+      last: { kind: 'hi', from: 'them', text: 'Amara said hi', at: '2d' },
     },
   ];
-
-  // The signed-in viewer is mock too in Phase 1.
-  const VIEWER = {
-    name: 'Alex',
-    age: 28,
-    bio: 'Building the app I would want to use. Ask me about my sourdough.',
-    photo: photo(999),
-  };
 
   // ------------------------------------------------------------------ presence
 
@@ -196,5 +266,5 @@ window.OmichatData = (function () {
     return { status: 'none', label: null };
   }
 
-  return { PROFILES, byId, THREADS, VIEWER, presence, rng: lcg };
+  return { PROFILES, byId, THREADS, presence, rng: lcg };
 })();

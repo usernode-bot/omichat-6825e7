@@ -88,6 +88,42 @@
     return p;
   }
 
+  // "3 interests in common" against the viewer's own saved interests.
+  // viewerInterests: an array once the viewer's profile has loaded, null when
+  // it is unavailable (then the line is left out, never guessed). A viewer
+  // with no interests yet gets a nudge to add some instead of a count.
+  function sharedInterestsEl(profile, viewerInterests) {
+    if (!Array.isArray(viewerInterests)) return null;
+    const p = document.createElement('p');
+    p.dataset.testid = 'shared-interests';
+    if (!viewerInterests.length) {
+      p.className = 'flex items-center gap-1.5 text-sm text-zinc-400';
+      p.innerHTML = icon('users', 'w-4 h-4 shrink-0') + '<span>Add your interests to see what you share</span>';
+      return p;
+    }
+    const n = window.OmichatSchema.sharedInterests(profile.interests, viewerInterests).length;
+    if (!n) return null;
+    p.className = 'flex items-center gap-1.5 text-sm font-medium text-sky-300';
+    p.innerHTML = icon('users', 'w-4 h-4 shrink-0') +
+      '<span>' + n + (n === 1 ? ' interest' : ' interests') + ' in common</span>';
+    return p;
+  }
+
+  // A photo src for any profile photo: mock photos are data-URI strings,
+  // the viewer's are { id, url } records from platform storage.
+  function photoSrc(ph) {
+    return typeof ph === 'string' ? ph : (ph && ph.url) || '';
+  }
+
+  // Stand-in where a profile has no photo yet.
+  function PhotoPlaceholder(cls, label) {
+    const d = document.createElement('div');
+    d.className = 'flex flex-col items-center justify-center gap-2 bg-zinc-800 text-zinc-500 ' + (cls || '');
+    d.innerHTML = icon('image', 'w-8 h-8') + (label ? '<span class="text-xs font-medium"></span>' : '');
+    if (label) d.querySelector('span').textContent = label;
+    return d;
+  }
+
   // A profile card. `opts.behind` renders the non-interactive under-stack
   // card that gives the deck its depth.
   function ProfileCard(profile, opts) {
@@ -116,28 +152,52 @@
         'class="absolute top-2 right-2 z-30 p-2 rounded-full bg-zinc-950/40 text-white hover:bg-zinc-950/60 active:scale-90 transition-all ' +
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">' +
         icon('ellipsis-vertical', 'w-5 h-5') + '</button>' +
-        '<div data-badge="pass" class="absolute top-6 left-5 z-30 -rotate-12 pointer-events-none rounded-xl border-4 border-zinc-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-zinc-100 bg-zinc-900/30 opacity-0">PASS</div>' +
-        '<div data-badge="like" class="absolute top-6 right-5 z-30 rotate-12 pointer-events-none rounded-xl border-4 border-sky-400 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-sky-100 bg-zinc-900/30 opacity-0">LIKE</div>' +
-        '<div data-badge="super" class="absolute top-14 left-1/2 z-30 -translate-x-1/2 pointer-events-none rounded-xl border-4 border-amber-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-amber-100 bg-zinc-900/30 opacity-0">SUPER LIKE</div>';
+        '<div data-badge="skip" class="absolute top-6 left-5 z-30 -rotate-12 pointer-events-none rounded-xl border-4 border-zinc-300 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-zinc-100 bg-zinc-900/30 opacity-0">SKIP</div>' +
+        '<div data-badge="hi" class="absolute top-6 right-5 z-30 rotate-12 pointer-events-none rounded-xl border-4 border-sky-400 px-3 py-0.5 text-2xl font-extrabold tracking-wider text-sky-100 bg-zinc-900/30 opacity-0">SAY HI</div>';
     }
 
+    // Shared interests first, so the tags a viewer has in common are the
+    // ones the card has room for.
+    const shared = opts.viewerInterests
+      ? window.OmichatSchema.sharedInterests(profile.interests, opts.viewerInterests)
+      : [];
+    const ordered = shared.concat(profile.interests.filter(function (i) {
+      return shared.indexOf(i) === -1;
+    }));
+    const CARD_TAGS = 4;
+
+    // The info block is the card's tap target for the full profile: it sits
+    // above the photo tap zones, and taps on it open the profile while drags
+    // starting on it still swipe the card.
     inner +=
       '<div data-profile-info class="absolute inset-x-0 bottom-0 z-20 p-5 flex flex-col gap-2 ' +
-      (opts.behind ? '' : 'pointer-events-none') + '">' +
+      (opts.behind ? '' : 'cursor-pointer') + '">' +
       '<div class="flex items-center gap-2">' +
       '<h2 class="text-2xl font-bold text-white drop-shadow">' + profile.name +
       (profile.age == null ? '' : ', ' + profile.age) + '</h2>' +
       (profile.verified ? VerifiedBadge('w-5 h-5') : '') +
+      (opts.behind ? '' :
+        '<button type="button" data-open-profile aria-label="View ' + profile.name + '\'s full profile" ' +
+        'class="ml-auto shrink-0 w-9 h-9 rounded-full bg-white/15 border border-white/20 text-white flex items-center justify-center ' +
+        'hover:bg-white/25 active:scale-90 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400">' +
+        icon('chevron-up', 'w-5 h-5') + '</button>') +
       '</div>' +
       (privacySettings().hideDistance ? '' :
         '<p class="flex items-center gap-1.5 text-sm text-zinc-300">' +
         icon('map-pin', 'w-4 h-4 text-zinc-400') +
         '<span>' + (profile.distance == null ? 'Distance unknown' : profile.distance + ' km away') + '</span></p>') +
-      '<p class="text-sm leading-relaxed text-zinc-300 line-clamp-2">' + profile.bio + '</p>' +
+      (profile.bio
+        ? '<p class="text-sm leading-relaxed text-zinc-300 line-clamp-2">' + profile.bio + '</p>'
+        : '') +
       '<div class="flex flex-wrap gap-2 pt-0.5">' +
-      profile.interests.map(function (i) {
-        return '<span class="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white">' + i + '</span>';
+      ordered.slice(0, CARD_TAGS).map(function (i) {
+        return shared.indexOf(i) !== -1
+          ? '<span class="rounded-full border border-sky-300/60 bg-sky-500/25 px-3 py-1 text-xs font-medium text-white">' + i + '</span>'
+          : '<span class="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-white">' + i + '</span>';
       }).join('') +
+      (ordered.length > CARD_TAGS
+        ? '<span class="rounded-full px-2 py-1 text-xs font-medium text-zinc-300">+' + (ordered.length - CARD_TAGS) + '</span>'
+        : '') +
       '</div></div>';
 
     el.innerHTML = inner;
@@ -150,6 +210,10 @@
     const presence = presenceEl(profile);
     if (infoBlock && presence) {
       infoBlock.insertBefore(presence, infoBlock.children[1]);
+    }
+    const sharedLine = sharedInterestsEl(profile, opts.viewerInterests);
+    if (infoBlock && sharedLine) {
+      infoBlock.insertBefore(sharedLine, infoBlock.lastElementChild);
     }
 
     if (!opts.behind) {
@@ -170,13 +234,13 @@
 
   const TABS = [
     { id: 'discover', label: 'Discover', tabIcon: 'compass' },
-    { id: 'likes', label: 'Likes', tabIcon: 'heart' },
-    { id: 'matches', label: 'Matches', tabIcon: 'sparkles' },
+    { id: 'hellos', label: 'Hellos', tabIcon: 'hand' },
+    { id: 'connections', label: 'Connections', tabIcon: 'users' },
     { id: 'messages', label: 'Messages', tabIcon: 'message-circle' },
     { id: 'profile', label: 'Profile', tabIcon: 'user' },
   ];
 
-  function renderTabbar(container, active, likesCount) {
+  function renderTabbar(container, active, hellosCount) {
     container.className = 'shrink-0 border-t border-zinc-800 bg-zinc-950';
     container.style.paddingBottom =
       'var(--un-safe-inset-bottom, env(safe-area-inset-bottom, 0px))';
@@ -196,7 +260,7 @@
       b.innerHTML =
         icon(t.tabIcon, 'w-6 h-6') +
         '<span class="text-xs font-medium">' + t.label + '</span>';
-      if (t.id === 'likes' && likesCount > 0) {
+      if (t.id === 'hellos' && hellosCount > 0) {
         const dot = document.createElement('span');
         dot.className = 'absolute top-2 right-2.5 w-2 h-2 rounded-full bg-sky-500';
         b.append(dot);
@@ -216,6 +280,9 @@
     ProfileCard: ProfileCard,
     VerifiedBadge: VerifiedBadge,
     presenceEl: presenceEl,
+    sharedInterestsEl: sharedInterestsEl,
+    photoSrc: photoSrc,
+    PhotoPlaceholder: PhotoPlaceholder,
     renderTabbar: renderTabbar,
   };
 })();
