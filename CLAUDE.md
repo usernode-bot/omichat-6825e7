@@ -136,5 +136,11 @@ session state. Persisted, per-account features: verification
   unset; the deck never guesses a value for missing data. Two sparse mock
   profiles (`Sasha`, `Milo`) exercise this and the full profile's empty
   states.
+- Safety and Trust (Phase 1 of that roadmap) lives behind one service layer,
+  `public/js/safety.js` (reports, blocks, selfie verification, privacy, age
+  gate), backed by localStorage and mock latency; UI is `safety-ui.js`. Swap
+  it with `OmichatSafety.configure(...)`. Blocks are permanent (no unblock).
+  The age gate stores only the pass/blocked result, never the date of birth.
+  Tests: `npm test`.
 - Keep the frontend component-based (`public/js/components.js`,
   `profile-view.js`, `profile-edit.js`); no framework, no new dependencies.
