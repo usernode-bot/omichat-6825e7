@@ -2,6 +2,7 @@
   "name": "Omichat",
   "description": "Meet people nearby who share your interests, for friends and hobbies.",
   "icon": {
+    "image": "brand/icon.png",
     "emoji": "💬"
   },
   "permissions": [
