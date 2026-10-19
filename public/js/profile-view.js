@@ -23,11 +23,13 @@
     return el('p', 'text-sm text-zinc-500', text);
   }
 
-  // Horizontal scroll-snap gallery: native 1:1 swiping on touch, arrow keys
-  // and the dots on desktop. Up to 6 photos.
-  function gallery(photos, name) {
-    const wrap = el('div', 'relative h-96 bg-zinc-900');
-    wrap.dataset.testid = 'profile-gallery';
+  // Horizontal scroll-snap gallery: native 1:1 swiping on touch; the arrows
+  // (wider screens), arrow keys and the dots on desktop. Up to 6 photos.
+  // opts: { heightClass (default 'h-96'), testid }
+  function gallery(photos, name, opts) {
+    opts = opts || {};
+    const wrap = el('div', 'relative bg-zinc-900 ' + (opts.heightClass || 'h-96'));
+    wrap.dataset.testid = opts.testid || 'profile-gallery';
     const list = (photos || []).slice(0, Schema.LIMITS.photos);
     if (!list.length) {
       wrap.append(UI.PhotoPlaceholder('absolute inset-0', 'No photos yet'));
@@ -65,6 +67,26 @@
         '1 / ' + list.length);
       wrap.append(count);
 
+      function arrow(dir) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.galleryArrow = dir;
+        b.setAttribute('aria-label', dir === 'prev' ? 'Previous photo' : 'Next photo');
+        b.className = 'hidden sm:flex absolute top-1/2 -translate-y-1/2 w-9 h-9 items-center justify-center rounded-full ' +
+          'bg-zinc-950/60 text-white hover:bg-zinc-950/80 active:scale-90 transition-all disabled:opacity-0 ' +
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ' +
+          (dir === 'prev' ? 'left-3' : 'right-3');
+        b.innerHTML = icon(dir === 'prev' ? 'chevron-left' : 'chevron-right', 'w-5 h-5');
+        b.addEventListener('click', function () {
+          go(dir === 'prev' ? Math.max(0, current - 1) : Math.min(list.length - 1, current + 1));
+        });
+        wrap.append(b);
+        return b;
+      }
+      const prevBtn = arrow('prev');
+      const nextBtn = arrow('next');
+      prevBtn.disabled = true;
+
       let current = 0;
       function go(i) {
         track.scrollTo({ left: i * track.clientWidth, behavior: 'smooth' });
@@ -78,6 +100,8 @@
             (j === i ? 'w-5 bg-white' : 'w-1.5 bg-white/40');
         });
         count.textContent = (i + 1) + ' / ' + list.length;
+        prevBtn.disabled = i === 0;
+        nextBtn.disabled = i === list.length - 1;
       }, { passive: true });
       track.addEventListener('keydown', function (e) {
         if (e.key === 'ArrowRight') { e.stopPropagation(); go(Math.min(list.length - 1, current + 1)); }
@@ -243,5 +267,5 @@
     return root;
   }
 
-  window.OmichatProfileView = { build: build };
+  window.OmichatProfileView = { build: build, gallery: gallery };
 })();

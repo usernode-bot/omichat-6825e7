@@ -1283,19 +1283,23 @@
     const card = document.createElement('div');
     card.dataset.testid = 'my-profile';
     card.className = 'rounded-3xl overflow-hidden border border-zinc-800 bg-zinc-900';
-    card.innerHTML =
-      '<div class="h-24 bg-gradient-to-r from-sky-600/40 to-indigo-600/40"></div>' +
-      '<div class="px-5 pb-5 -mt-8 flex flex-col" data-body></div>';
-    const body = card.querySelector('[data-body]');
-
-    const main = profile && profile.photos && profile.photos[0];
-    if (main) {
-      const img = document.createElement('img');
-      img.src = UI.photoSrc(main);
-      img.alt = '';
-      img.className = 'w-16 h-16 rounded-full object-cover border-4 border-zinc-900 bg-zinc-800';
-      body.append(img);
+    // Cover: the viewer's own photos as a swipeable gallery; the plain
+    // gradient banner (with an avatar placeholder) only when there are none.
+    const photos = (profile && profile.photos) || [];
+    let body;
+    if (photos.length) {
+      const name = (profile && profile.name) || (me && me.username) || 'Profile';
+      card.append(window.OmichatProfileView.gallery(photos, name, {
+        heightClass: 'h-80', testid: 'profile-cover-gallery',
+      }));
+      body = document.createElement('div');
+      body.className = 'px-5 pb-5 pt-2 flex flex-col';
+      card.append(body);
     } else {
+      card.innerHTML =
+        '<div data-testid="profile-cover-empty" class="h-24 bg-gradient-to-r from-sky-600/40 to-indigo-600/40"></div>' +
+        '<div class="px-5 pb-5 -mt-8 flex flex-col" data-body></div>';
+      body = card.querySelector('[data-body]');
       const ph = document.createElement('div');
       ph.className = 'w-16 h-16 rounded-full border-4 border-zinc-900 bg-zinc-800 text-zinc-500 flex items-center justify-center';
       ph.innerHTML = icon('user', 'w-7 h-7');
