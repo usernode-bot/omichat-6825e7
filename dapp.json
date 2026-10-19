@@ -147,6 +147,12 @@
       "impact": ["public/**"]
     },
     {
+      "id": "profile.cover-empty",
+      "name": "Profile without photos keeps the gradient cover",
+      "path": "/#profile",
+      "expectSelector": "[data-testid=\"my-profile\"] [data-testid=\"profile-cover-empty\"]"
+    },
+    {
       "id": "safety.privacy-row",
       "name": "Profile lists Privacy and Selfie verification",
       "path": "/#profile",
