@@ -62,56 +62,52 @@
 
   // ------------------------------------------------------------ filters
 
+  const Filters = window.OmichatFilters;
+  const Schema = window.OmichatSchema;
+
   const AGE_OPTIONS = [{ value: null, label: 'Any' }].concat(
     (function () {
       const opts = [];
-      for (let n = 18; n <= 80; n++) opts.push({ value: n, label: String(n) });
+      for (let n = Filters.AGE_MIN; n <= Filters.AGE_MAX; n++) opts.push({ value: n, label: String(n) });
       return opts;
     })()
   );
 
-  const DISTANCE_OPTIONS = [
-    { value: null, label: 'Any distance' },
-    { value: 1, label: 'Up to 1 km' },
-    { value: 2, label: 'Up to 2 km' },
-    { value: 5, label: 'Up to 5 km' },
-    { value: 10, label: 'Up to 10 km' },
-    { value: 25, label: 'Up to 25 km' },
-    { value: 50, label: 'Up to 50 km' },
-    { value: 100, label: 'Up to 100 km' },
-  ];
+  const DISTANCE_OPTIONS = [{ value: null, label: 'Any distance' }].concat(
+    Filters.DISTANCES_KM.map(function (km) { return { value: km, label: 'Up to ' + km + ' km' }; })
+  );
 
-  function filtersActive() {
-    const f = state.filters;
-    return f.minAge != null || f.maxAge != null || f.maxDistance != null;
+  // Filter choices are saved on the device and restored on the next visit;
+  // blocked storage or a bad saved value falls back to the defaults.
+  function loadFilters() {
+    try {
+      const raw = localStorage.getItem('omichat.filters');
+      return raw ? JSON.parse(raw) : null;
+    } catch (err) {
+      return null;
+    }
   }
 
-  // A profile lacking an age or a distance shows only while the matching
+  function saveFilters() {
+    try {
+      localStorage.setItem('omichat.filters', JSON.stringify(state.filters));
+    } catch (err) { /* the choice stays in memory for this session */ }
+  }
+
+  function filtersActive() {
+    return Filters.activeCount(state.filters) > 0;
+  }
+
+  // A profile lacking the field a filter is set on shows only while that
   // filter is unset. The deck never invents a value for missing data, so it
   // never filters on one either: with filters off, everyone is swipable.
   function matchesFilters(p) {
-    const f = state.filters;
-    if (p.age == null) {
-      if (f.minAge != null || f.maxAge != null) return false;
-    } else {
-      if (f.minAge != null && p.age < f.minAge) return false;
-      if (f.maxAge != null && p.age > f.maxAge) return false;
-    }
-    if (f.maxDistance != null && (p.distance == null || p.distance > f.maxDistance)) {
-      return false;
-    }
-    return true;
+    return Filters.matches(p, state.filters, Data.presence);
   }
 
   // Short label for the deck's filter pill, e.g. "24–40 · 10 km".
   function filtersSummary() {
-    const f = state.filters;
-    const parts = [];
-    if (f.minAge != null && f.maxAge != null) parts.push(f.minAge + '–' + f.maxAge);
-    else if (f.minAge != null) parts.push(f.minAge + '+');
-    else if (f.maxAge != null) parts.push('up to ' + f.maxAge);
-    if (f.maxDistance != null) parts.push(f.maxDistance + ' km');
-    return parts.join(' · ');
+    return Filters.summary(state.filters);
   }
 
   const Safety = window.OmichatSafety;
@@ -138,9 +134,10 @@
     // 'verified' | 'rejected'. Blocked profile ids are permanent.
     selfie: 'none',
     blocked: new Set(Safety.services().blocks.list()),
-    // Discovery filters. null means the filter is off; a profile missing the
-    // field a filter is set on is hidden rather than guessed about.
-    filters: { minAge: null, maxAge: null, maxDistance: null },
+    // Discovery filters (age, distance, online, looking for, interests,
+    // languages). Off means null, false or an empty array; a profile missing
+    // the field a filter is set on is hidden rather than guessed about.
+    filters: Filters.sanitize(loadFilters()),
   };
 
   // In-card state of the email flow, kept across re-renders of the Profile
@@ -223,11 +220,12 @@
   // The deck's filter pill. Doubles as the live summary: once a filter is
   // set it reads like "24–40 · 10 km" instead of the plain "Filters".
   function filtersButton() {
-    const active = filtersActive();
+    const count = Filters.activeCount(state.filters);
+    const active = count > 0;
     const b = document.createElement('button');
     b.type = 'button';
     b.dataset.testid = 'filters-button';
-    b.setAttribute('aria-label', 'Discovery filters');
+    b.setAttribute('aria-label', active ? 'Discovery filters, ' + count + ' active' : 'Discovery filters');
     b.className =
       'flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium ' +
       'transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ' +
@@ -235,7 +233,16 @@
         ? 'border-sky-500/50 bg-sky-500/10 text-sky-300'
         : 'border-zinc-800 bg-zinc-900/60 text-zinc-300 hover:border-zinc-600 hover:text-zinc-100');
     b.innerHTML = icon('sliders-horizontal', 'w-3.5 h-3.5') + '<span></span>';
-    b.querySelector('span').textContent = active ? filtersSummary() : 'Filters';
+    b.querySelector('span').textContent = filtersSummary() || 'Filters';
+    if (active) {
+      const badge = document.createElement('span');
+      badge.dataset.testid = 'filters-count';
+      badge.textContent = String(count);
+      badge.className =
+        'min-w-[1.125rem] h-[1.125rem] px-1 rounded-full bg-sky-500 text-[10px] font-bold ' +
+        'text-white inline-flex items-center justify-center';
+      b.append(badge);
+    }
     b.addEventListener('click', openFilters);
     return b;
   }
@@ -267,7 +274,7 @@
             'flex flex-col items-center justify-center text-center gap-3 p-6',
           icon: 'sliders-horizontal',
           title: 'No one matches your filters',
-          body: 'Loosen the age range or the distance to see more people.',
+          body: 'Loosen or reset your filters to see more people.',
           actionLabel: 'Adjust filters',
           onAction: openFilters,
         }));
@@ -530,18 +537,29 @@
     content.className = 'px-5 pt-2 pb-7 flex flex-col gap-5';
 
     const head = document.createElement('div');
-    head.className = 'flex items-center justify-between';
+    head.className = 'flex items-start justify-between';
+    const titleWrap = document.createElement('div');
     const title = document.createElement('h2');
     title.className = 'text-lg font-bold text-zinc-100';
     title.textContent = 'Discovery filters';
+    const countLine = document.createElement('p');
+    countLine.className = 'text-xs text-zinc-400';
+    countLine.dataset.testid = 'filters-sheet-count';
+    titleWrap.append(title, countLine);
     const reset = document.createElement('button');
     reset.type = 'button';
     reset.textContent = 'Reset';
     reset.className =
       'rounded-full px-2 py-1 text-sm font-medium text-sky-300 hover:text-sky-200 ' +
       'active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
-    head.append(title, reset);
+    head.append(titleWrap, reset);
     content.append(head);
+
+    function updateCount() {
+      const n = Filters.activeCount(state.filters);
+      countLine.textContent = n > 0 ? n + ' active' : '';
+    }
+    updateCount();
 
     const minSel = selectControl('Minimum age', AGE_OPTIONS, state.filters.minAge);
     const maxSel = selectControl('Maximum age', AGE_OPTIONS, state.filters.maxAge);
@@ -569,6 +587,73 @@
     distWrap.append(distSel.wrap);
     content.append(distWrap);
 
+    // Online now: the platform kit's switch, laid out like the rows in
+    // Privacy and safety. Without the kit it shows as a plain checkbox.
+    const onlineWrap = document.createElement('div');
+    onlineWrap.className = 'flex items-center gap-3';
+    const onlineText = document.createElement('div');
+    onlineText.className = 'flex-1 min-w-0';
+    const onlineLabel = document.createElement('p');
+    onlineLabel.className = 'text-sm font-medium text-zinc-300';
+    onlineLabel.textContent = 'Online now';
+    onlineText.append(onlineLabel, hint('Online now or active in the last 30 minutes.'));
+    const onlineSwitch = document.createElement('input');
+    onlineSwitch.type = 'checkbox';
+    onlineSwitch.className = 'un-switch';
+    onlineSwitch.setAttribute('aria-label', 'Online now');
+    onlineSwitch.checked = state.filters.online === true;
+    onlineWrap.append(onlineText, onlineSwitch);
+    content.append(onlineWrap);
+
+    // Multi-select chip groups. Same look as the Edit Profile chips; no
+    // selection limit here, one match within a group is enough.
+    const chipRerenders = [];
+    function chipGroup(labelText, hintText, options, selected) {
+      const wrap = document.createElement('div');
+      wrap.className = 'flex flex-col gap-2';
+      const label = document.createElement('p');
+      label.className = 'text-sm font-medium text-zinc-300';
+      label.textContent = labelText;
+      wrap.append(label, hint(hintText));
+      const body = document.createElement('div');
+      body.className = 'flex flex-wrap gap-2';
+      wrap.append(body);
+      function renderChips() {
+        body.innerHTML = '';
+        options.forEach(function (o) {
+          const on = selected.indexOf(o.value) !== -1;
+          const chip = document.createElement('button');
+          chip.type = 'button';
+          chip.setAttribute('aria-pressed', on ? 'true' : 'false');
+          chip.className = chipCls(on, false);
+          chip.textContent = o.label;
+          chip.addEventListener('click', function () {
+            const i = selected.indexOf(o.value);
+            if (i !== -1) selected.splice(i, 1);
+            else selected.push(o.value);
+            renderChips();
+            applyChanged();
+          });
+          body.append(chip);
+        });
+      }
+      renderChips();
+      chipRerenders.push(renderChips);
+      content.append(wrap);
+    }
+
+    chipGroup('Looking for',
+      'Profiles that have not said what they are looking for show only when none is chosen.',
+      Schema.LOOKING_FOR, state.filters.lookingFor);
+    chipGroup('Interests',
+      'Shows people who share at least one. Profiles with no interests show only when none is chosen.',
+      Schema.INTERESTS.map(function (name) { return { value: name, label: name }; }),
+      state.filters.interests);
+    chipGroup('Languages',
+      'Shows people who speak at least one. Profiles with no languages show only when none is chosen.',
+      Schema.LANGUAGES.map(function (name) { return { value: name, label: name }; }),
+      state.filters.languages);
+
     content.append(UI.Button('Done', { onClick: function () { sheet.dismiss(); } }));
 
     const sheet = presentSheet(content, function () { filtersOpen = false; });
@@ -577,26 +662,53 @@
       state.filters.minAge = minSel.value();
       state.filters.maxAge = maxSel.value();
       state.filters.maxDistance = distSel.value();
+      state.filters.online = onlineSwitch.checked;
       // Keep the range valid: a minimum above the maximum pulls the maximum up.
       if (state.filters.minAge != null && state.filters.maxAge != null &&
           state.filters.minAge > state.filters.maxAge) {
         state.filters.maxAge = state.filters.minAge;
         maxSel.el.value = String(state.filters.maxAge);
       }
+      saveFilters();
+      updateCount();
       if (state.tab === 'discover') render();
     }
 
     minSel.el.addEventListener('change', applyChanged);
     maxSel.el.addEventListener('change', applyChanged);
     distSel.el.addEventListener('change', applyChanged);
+    onlineSwitch.addEventListener('change', applyChanged);
 
     reset.addEventListener('click', function () {
-      state.filters = { minAge: null, maxAge: null, maxDistance: null };
+      // Cleared in place: the chip renderers hold the array references.
+      state.filters.minAge = null;
+      state.filters.maxAge = null;
+      state.filters.maxDistance = null;
+      state.filters.online = false;
+      state.filters.lookingFor.length = 0;
+      state.filters.interests.length = 0;
+      state.filters.languages.length = 0;
       minSel.el.value = '';
       maxSel.el.value = '';
       distSel.el.value = '';
+      onlineSwitch.checked = false;
+      chipRerenders.forEach(function (renderChips) { renderChips(); });
+      saveFilters();
+      updateCount();
       if (state.tab === 'discover') render();
     });
+  }
+
+  // Same chip classes as Edit Profile's chipCls, copied rather than shared:
+  // the two screens move separately.
+  function chipCls(on, disabled) {
+    return 'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ' +
+      (on
+        ? 'border-sky-400/70 bg-sky-500/20 text-sky-100'
+        : disabled
+          ? 'border-zinc-800 bg-zinc-900 text-zinc-600'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500');
   }
 
   function selectControl(label, options, value) {

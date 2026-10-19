@@ -6,9 +6,13 @@ running on Homeroom.
 
 - **Discover**: a swipeable deck of (mock) profiles. Swipe right or tap the
   wave to Say hi, swipe left or tap the cross to Skip. Each card shows how
-  many interests you have in common. Tap the card's details to open the
+  many interests you have in common. **Discovery filters** (age range,
+  distance, online now, "Looking for", interests and languages) open from
+  the pill above the deck; choices are saved on the device. When nobody
+  passes the filters, Discover says so and points at them. Tap the card's
+  details to open the
   **full profile**: a swipeable gallery of up to 6 photos, bio, prompts,
-  what they are looking for, job, education, interests (shared ones
+  what they are looking for, languages, job, education, interests (shared ones
   highlighted) and their Instagram or Spotify when they added one, with
   Skip and Say hi at the bottom.
 - **Hellos**: everyone you said hi to this session, with an undo.
@@ -17,7 +21,8 @@ running on Homeroom.
 - **Profile**: your own profile with a completeness meter and hints for
   what to add next, **Edit profile** (photos with compression and an upload
   state, reorder and delete; name, age, bio, "Looking for", job, education,
-  up to 8 interests from a list, up to 3 prompts, optional Instagram and
+  up to 8 interests from a list, up to 6 languages from a list, up to 3
+  prompts, optional Instagram and
   Spotify), a preview of how others see you, and account verification.
 
 Your profile and verification are stored server-side per Homeroom account
