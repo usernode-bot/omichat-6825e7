@@ -134,6 +134,8 @@
     // 'verified' | 'rejected'. Blocked profile ids are permanent.
     selfie: 'none',
     blocked: new Set(Safety.services().blocks.list()),
+    // Project members review reports; from GET /api/safety.
+    canReviewReports: false,
     // Discovery filters (age, distance, online, looking for, interests,
     // languages). Off means null, false or an empty array; a profile missing
     // the field a filter is set on is hidden rather than guessed about.
@@ -501,6 +503,14 @@
 
   function renderPerson() {
     const p = Data.byId.get(state.view.id);
+    if (p && state.blocked.has(p.id)) {
+      // A blocked person's profile never opens, from a link or otherwise.
+      state.view = null;
+      history.replaceState(null, '', '#discover');
+      toast('This profile is not available');
+      render();
+      return;
+    }
     if (!p) {
       const wrap = document.createElement('div');
       wrap.className = 'h-full flex';
@@ -892,17 +902,22 @@
   // unread dot; the message kind styles the preview line — your messages
   // get the accent "You:" prefix, a hi carries a wave mark, and a
   // connection is a system notice.
+  // The row holds two buttons side by side (a button cannot contain
+  // another): the conversation itself and its three-dot menu.
   function threadRow(p, thread) {
     const last = thread.last;
-    const row = document.createElement('button');
-    row.type = 'button';
+    const row = document.createElement('div');
     row.dataset.testid = 'thread-row';
     row.dataset.thread = p.id;
     row.className =
-      'w-full flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 ' +
-      'text-left hover:border-zinc-700 transition-colors ' +
+      'w-full flex items-center gap-1 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3 pr-1.5 ' +
+      'hover:border-zinc-700 transition-colors';
+    const open = document.createElement('button');
+    open.type = 'button';
+    open.className =
+      'flex-1 min-w-0 flex items-center gap-3 text-left rounded-xl ' +
       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
-    row.innerHTML =
+    open.innerHTML =
       '<img src="' + p.photos[0] + '" alt="" class="w-14 h-14 rounded-xl object-cover shrink-0">' +
       '<div class="flex-1 min-w-0">' +
       '<div class="flex items-center justify-between gap-2">' +
@@ -913,9 +928,18 @@
       '</div>' + (thread.unread > 0
         ? '<span class="shrink-0 w-2.5 h-2.5 rounded-full" style="background:' + p.accent + '" aria-label="' + thread.unread + ' unread"></span>'
         : '');
-    row.addEventListener('click', function () {
+    open.addEventListener('click', function () {
       toast('Chat opens in a later phase');
     });
+    const more = document.createElement('button');
+    more.type = 'button';
+    more.dataset.threadMenu = p.id;
+    more.setAttribute('aria-label', 'More options for ' + p.name);
+    more.className =
+      'shrink-0 p-2 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
+    more.innerHTML = icon('ellipsis-vertical', 'w-5 h-5');
+    row.append(open, more);
     return row;
   }
 
@@ -1357,6 +1381,88 @@
     return row;
   }
 
+  // Reports to review: project members only (the server answers 403 for
+  // anyone else and the card goes away).
+  function buildReportsReviewCard() {
+    const card = document.createElement('div');
+    card.dataset.testid = 'reports-review';
+    card.className = 'rounded-2xl border border-zinc-800 bg-zinc-900/60 overflow-hidden';
+    const head = document.createElement('div');
+    head.className = 'px-4 py-3.5 flex items-center gap-3';
+    head.innerHTML =
+      '<span class="text-zinc-500">' + icon('flag', 'w-5 h-5') + '</span>' +
+      '<div class="flex-1 min-w-0">' +
+      '<p class="text-sm font-semibold text-zinc-100">Reports to review</p>' +
+      '<p class="text-xs text-zinc-400 mt-0.5">Reports people sent about a profile or a message.</p></div>';
+    card.append(head);
+    const list = document.createElement('div');
+    list.className = 'divide-y divide-zinc-800 border-t border-zinc-800';
+    card.append(list);
+
+    function showEmpty() {
+      const empty = document.createElement('p');
+      empty.className = 'px-4 py-3 text-xs text-zinc-400 border-t border-zinc-800';
+      empty.textContent = 'No reports waiting';
+      card.append(empty);
+    }
+
+    Safety.services().reports.pending().then(function (rows) {
+      if (!rows.length) { showEmpty(); return; }
+      rows.forEach(function (r) {
+        list.append(reportReviewRow(r, function () {
+          if (!list.children.length) showEmpty();
+        }));
+      });
+    }).catch(function () { card.remove(); });
+    return card;
+  }
+
+  function reportReviewRow(r, onDone) {
+    const row = document.createElement('div');
+    row.dataset.testid = 'report-review-row';
+    row.className = 'px-4 py-3 flex flex-col gap-2';
+    const name = r.target_name || 'Someone';
+    const what = r.target_type === 'message' ? 'Message from ' + name : 'Profile: ' + name;
+    row.innerHTML =
+      '<div class="flex items-center justify-between gap-2">' +
+      '<p class="text-sm font-medium text-zinc-100 truncate">' + escapeHtml(what) + '</p>' +
+      '<span class="shrink-0 text-xs text-rose-300">' + escapeHtml(Safety.reasonLabel(r.target_type, r.reason)) + '</span>' +
+      '</div>' +
+      (r.message_text
+        ? '<blockquote class="border-l-[3px] border-zinc-600 rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-300">' +
+          escapeHtml(r.message_text) + '</blockquote>'
+        : '') +
+      (r.note ? '<p class="text-sm text-zinc-300">' + escapeHtml(r.note) + '</p>' : '') +
+      '<p class="text-xs text-zinc-500">Reported by ' + escapeHtml(r.reporter_username || 'someone') +
+      ' on ' + new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + '</p>';
+
+    const actions = document.createElement('div');
+    actions.className = 'flex items-center gap-3';
+    const done = UI.Button('Mark reviewed', { onClick: function () { decide('reviewed'); } });
+    done.className = done.className.replace('px-5 py-2.5', 'px-4 py-2 text-xs');
+    const dismiss = UI.Button('Dismiss', { variant: 'outline', onClick: function () { decide('dismissed'); } });
+    dismiss.className = dismiss.className.replace('px-5 py-2.5', 'px-4 py-2 text-xs');
+    actions.append(done, dismiss);
+    row.append(actions);
+
+    async function decide(decision) {
+      if (done.disabled) return;
+      done.disabled = true;
+      dismiss.disabled = true;
+      try {
+        await Safety.services().reports.review(r.id, decision);
+        toast(decision === 'reviewed' ? 'Report marked reviewed' : 'Report dismissed');
+        row.remove();
+        onDone();
+      } catch (err) {
+        toast(err.message || 'Could not save the decision. Try again.');
+        done.disabled = false;
+        dismiss.disabled = false;
+      }
+    }
+    return row;
+  }
+
   // ---------------------------------------------------------------- profile
 
   // Asks the server even without a URL token: at the app's own address the
@@ -1496,6 +1602,7 @@
       section.append(buildVerificationCard());
       if (state.verification.canReview) section.append(buildReviewCard());
     }
+    if (state.canReviewReports) section.append(buildReportsReviewCard());
     screenEl.append(section);
   }
 
@@ -1600,24 +1707,32 @@
     toast: toast,
     // Called after a block, a privacy change or a selfie step: reread the
     // safety state and redraw whatever screen is up.
-    onChange: function () {
-      state.blocked = new Set(Safety.services().blocks.list());
-      state.blocked.forEach(function (id) { state.hellos.delete(id); });
-      Safety.services().verification.getStatus().then(function (s) {
-        state.selfie = s.status;
-        render();
-      }, function () { render(); });
-      render();
-    },
+    onChange: safetyChanged,
   });
 
-  // Delegated taps: the verified shield (anywhere it shows) and the card's
-  // three-dot menu.
+  function safetyChanged() {
+    state.blocked = new Set(Safety.services().blocks.list());
+    state.blocked.forEach(function (id) { state.hellos.delete(id); });
+    Safety.services().verification.getStatus().then(function (s) {
+      state.selfie = s.status;
+      render();
+    }, function () { render(); });
+    render();
+  }
+
+  // Delegated taps: the verified shield (anywhere it shows), the card's
+  // three-dot menu and a conversation's three-dot menu in Messages.
   document.addEventListener('click', function (e) {
-    const t = e.target.closest && e.target.closest('[data-verified-info], [data-card-menu]');
+    const t = e.target.closest && e.target.closest('[data-verified-info], [data-card-menu], [data-thread-menu]');
     if (!t) return;
     e.stopPropagation();
     if (t.matches('[data-verified-info]')) SafetyUI.openVerifiedInfo();
+    else if (t.matches('[data-thread-menu]')) {
+      const id = Number(t.dataset.threadMenu);
+      const p = Data.byId.get(id);
+      const thread = Data.THREADS.find(function (x) { return x.profileId === id; });
+      if (p) SafetyUI.openMenu(p, { thread: thread });
+    }
     else if (currentProfile()) SafetyUI.openMenu(currentProfile());
   }, true);
 
@@ -1628,8 +1743,41 @@
     openFilters();
   });
 
+  // Blocks, reports and privacy are saved to the account when the server
+  // has a database; until then (and in a local run without one) the
+  // device-only services stay in place. Whatever an older version kept on
+  // this device is copied to the account once.
+  async function loadSafety() {
+    if (!API_TOKEN) return;
+    try {
+      const r = await api('/api/safety');
+      if (!r.ok) return;
+      const local = Safety.services();
+      const server = Safety.createServerServices({ api: api, fallback: local, initial: await r.json() });
+      let imported = false;
+      try { imported = localStorage.getItem('omichat.safetyImported') === '1'; } catch (e) { /* no storage */ }
+      if (!imported) {
+        try {
+          if (local.blocks.list().length || (local.privacy.saved && local.privacy.saved())) {
+            await server.importFrom(local);
+          }
+          localStorage.setItem('omichat.safetyImported', '1');
+        } catch (e) { /* tried again on the next load */ }
+      }
+      Safety.configure(server);
+      state.canReviewReports = server.canReview();
+      state.blocked = new Set(server.blocks.list());
+      state.blocked.forEach(function (id) { state.hellos.delete(id); });
+      // Never redraw over an open Edit Profile form.
+      if (!document.querySelector('[data-testid="edit-profile"]')) render();
+    } catch (err) {
+      // Server unreachable: keep the device-only services.
+    }
+  }
+
   route();
   SafetyUI.mountAgeGate();
+  loadSafety();
   Safety.services().verification.getStatus().then(function (s) {
     state.selfie = s.status;
     if (state.tab === 'profile') render();
