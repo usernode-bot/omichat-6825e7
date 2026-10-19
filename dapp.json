@@ -71,7 +71,7 @@
     },
     {
       "id": "discover.filters",
-      "name": "Discover shows the age and distance filters control",
+      "name": "Discover shows the filters control",
       "path": "/",
       "expectSelector": "[data-testid=\"filters-button\"]",
       "expectText": "Filters",
@@ -115,6 +115,20 @@
         "public/**",
         "server.js"
       ]
+    },
+    {
+      "id": "profile.edit-languages",
+      "name": "Edit Profile lists the languages picker",
+      "path": "/#profile/edit",
+      "expectSelector": "[data-testid=\"edit-languages\"]",
+      "expectText": "The languages you are happy to chat in."
+    },
+    {
+      "id": "discover.full-profile-languages",
+      "name": "Full profile lists the languages spoken",
+      "path": "/#discover/9",
+      "expectSelector": "[data-testid=\"full-profile\"]",
+      "expectText": "Portuguese, English, Spanish, French"
     },
     {
       "id": "safety.card-menu",

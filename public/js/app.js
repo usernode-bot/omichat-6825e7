@@ -81,37 +81,36 @@
     { value: 100, label: 'Up to 100 km' },
   ];
 
+  const Filters = window.OmichatFilters;
+  const Schema = window.OmichatSchema;
+
+  // sessionStorage can throw on access in a third-party frame; the filters
+  // then stay in memory for this page load.
+  const filterStore = (function () {
+    try { return window.sessionStorage; } catch (e) { return null; }
+  })();
+
   function filtersActive() {
-    const f = state.filters;
-    return f.minAge != null || f.maxAge != null || f.maxDistance != null;
+    return Filters.isActive(state.filters);
   }
 
-  // A profile lacking an age or a distance shows only while the matching
-  // filter is unset. The deck never invents a value for missing data, so it
-  // never filters on one either: with filters off, everyone is swipable.
+  // The online filter follows the viewer's own privacy choice: hiding your
+  // online status hides everyone else's too, so it cannot be filtered on.
+  function onlineFilterAvailable() {
+    return !Safety.services().privacy.get().hideOnlineStatus;
+  }
+
   function matchesFilters(p) {
-    const f = state.filters;
-    if (p.age == null) {
-      if (f.minAge != null || f.maxAge != null) return false;
-    } else {
-      if (f.minAge != null && p.age < f.minAge) return false;
-      if (f.maxAge != null && p.age > f.maxAge) return false;
-    }
-    if (f.maxDistance != null && (p.distance == null || p.distance > f.maxDistance)) {
-      return false;
-    }
-    return true;
+    return Filters.matches(p, state.filters, {
+      isOnline: onlineFilterAvailable()
+        ? function (q) { return Data.presence(q).status === 'online'; }
+        : null,
+    });
   }
 
   // Short label for the deck's filter pill, e.g. "24–40 · 10 km".
   function filtersSummary() {
-    const f = state.filters;
-    const parts = [];
-    if (f.minAge != null && f.maxAge != null) parts.push(f.minAge + '–' + f.maxAge);
-    else if (f.minAge != null) parts.push(f.minAge + '+');
-    else if (f.maxAge != null) parts.push('up to ' + f.maxAge);
-    if (f.maxDistance != null) parts.push(f.maxDistance + ' km');
-    return parts.join(' · ');
+    return Filters.summary(state.filters, { lookingForLabel: Schema.lookingForLabel });
   }
 
   const Safety = window.OmichatSafety;
@@ -138,9 +137,9 @@
     // 'verified' | 'rejected'. Blocked profile ids are permanent.
     selfie: 'none',
     blocked: new Set(Safety.services().blocks.list()),
-    // Discovery filters. null means the filter is off; a profile missing the
-    // field a filter is set on is hidden rather than guessed about.
-    filters: { minAge: null, maxAge: null, maxDistance: null },
+    // Discovery filters (see discovery-filters.js), remembered for the
+    // browsing session.
+    filters: Filters.load(filterStore),
   };
 
   // In-card state of the email flow, kept across re-renders of the Profile
@@ -267,7 +266,7 @@
             'flex flex-col items-center justify-center text-center gap-3 p-6',
           icon: 'sliders-horizontal',
           title: 'No one matches your filters',
-          body: 'Loosen the age range or the distance to see more people.',
+          body: 'Clear a filter or two to see more people.',
           actionLabel: 'Adjust filters',
           onAction: openFilters,
         }));
@@ -520,60 +519,125 @@
   // ------------------------------------------------------------ filters sheet
 
   // The discovery filters sheet. Every control live-applies: the deck behind
-  // it re-renders as each value changes. Presented with the platform's
-  // bottom sheet when the native kit is available, else a plain overlay so
-  // the filters still work outside the shell.
+  // it re-renders as each value changes, and the choice is remembered for
+  // the session. Presented with the platform's bottom sheet when the native
+  // kit is available, else a plain overlay so the filters still work outside
+  // the shell.
   function openFilters() {
     if (filtersOpen) return;
     filtersOpen = true;
+    // Header and Done stay put; the filters between them scroll, so the
+    // sheet never grows past the screen.
     const content = document.createElement('div');
-    content.className = 'px-5 pt-2 pb-7 flex flex-col gap-5';
+    content.dataset.testid = 'filters-sheet';
+    content.className = 'flex flex-col';
+    content.style.maxHeight = '80dvh';
+    const body = document.createElement('div');
+    body.className = 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-4 flex flex-col gap-5';
+    const foot = document.createElement('div');
+    foot.className = 'shrink-0 flex flex-col px-5 pt-3 pb-7 border-t border-zinc-800';
 
     const head = document.createElement('div');
-    head.className = 'flex items-center justify-between';
+    head.className = 'shrink-0 flex items-center justify-between px-5 pt-2 pb-3 border-b border-zinc-800';
     const title = document.createElement('h2');
     title.className = 'text-lg font-bold text-zinc-100';
     title.textContent = 'Discovery filters';
     const reset = document.createElement('button');
     reset.type = 'button';
+    reset.dataset.testid = 'filters-reset';
     reset.textContent = 'Reset';
     reset.className =
-      'rounded-full px-2 py-1 text-sm font-medium text-sky-300 hover:text-sky-200 ' +
+      'rounded-full px-2 py-1 text-sm font-medium text-sky-300 hover:text-sky-200 disabled:text-zinc-600 ' +
       'active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
     head.append(title, reset);
-    content.append(head);
+    content.append(head, body, foot);
 
     const minSel = selectControl('Minimum age', AGE_OPTIONS, state.filters.minAge);
     const maxSel = selectControl('Maximum age', AGE_OPTIONS, state.filters.maxAge);
     const ageRow = document.createElement('div');
     ageRow.className = 'grid grid-cols-2 gap-3';
     ageRow.append(minSel.wrap, maxSel.wrap);
-
-    const ageWrap = document.createElement('div');
-    ageWrap.className = 'flex flex-col gap-2';
-    const ageLabel = document.createElement('p');
-    ageLabel.className = 'text-sm font-medium text-zinc-300';
-    ageLabel.textContent = 'Age range';
-    ageWrap.append(ageLabel, ageRow,
-      hint('Profiles without an age show only when no age filter is set.'));
-    content.append(ageWrap);
+    body.append(filterSection('Age range',
+      'Profiles without an age show only when no age filter is set.', ageRow));
 
     const distSel = selectControl('Maximum distance', DISTANCE_OPTIONS, state.filters.maxDistance);
-    const distWrap = document.createElement('div');
-    distWrap.className = 'flex flex-col gap-2';
-    const distLabel = document.createElement('p');
-    distLabel.className = 'text-sm font-medium text-zinc-300';
-    distLabel.textContent = 'Distance';
-    distWrap.append(distLabel,
-      hint('Profiles without a distance show only when no distance filter is set.'));
-    distWrap.append(distSel.wrap);
-    content.append(distWrap);
+    body.append(filterSection('Distance',
+      'Profiles without a distance show only when no distance filter is set.', distSel.wrap));
 
-    content.append(UI.Button('Done', { onClick: function () { sheet.dismiss(); } }));
+    const onlineOk = onlineFilterAvailable();
+    const onlineBody = chipGroup('radiogroup', 'Online status');
+    body.append(filterSection('Online status',
+      onlineOk ? null : 'You hide your online status, so you cannot filter by it. Change this in Privacy and safety.',
+      onlineBody));
+
+    const lookingBody = chipGroup('group', 'Looking for');
+    body.append(filterSection('Looking for',
+      'Shows people looking for any of the ones you pick.', lookingBody));
+
+    const interestsBody = chipGroup('group', 'Interests');
+    interestsBody.dataset.testid = 'filter-interests';
+    body.append(filterSection('Interests',
+      'Shows people who share at least one of these.', interestsBody));
+
+    const languagesBody = chipGroup('group', 'Languages');
+    languagesBody.dataset.testid = 'filter-languages';
+    body.append(filterSection('Languages',
+      'Shows people who speak at least one of these.', languagesBody));
+
+    foot.append(UI.Button('Done', { onClick: function () { sheet.dismiss(); } }));
 
     const sheet = presentSheet(content, function () { filtersOpen = false; });
 
-    function applyChanged() {
+    function changed() {
+      Filters.save(filterStore, state.filters);
+      reset.disabled = !filtersActive();
+      if (state.tab === 'discover' && !state.view) render();
+    }
+
+    function toggleIn(list, value) {
+      const i = list.indexOf(value);
+      if (i === -1) list.push(value); else list.splice(i, 1);
+    }
+
+    function renderChips() {
+      onlineBody.innerHTML = '';
+      [{ value: false, label: 'Anyone' }, { value: true, label: 'Online now' }].forEach(function (o) {
+        const on = state.filters.online === o.value;
+        onlineBody.append(chip(o.label, on, !onlineOk, 'radio', function () {
+          state.filters.online = o.value;
+          renderChips();
+          changed();
+        }));
+      });
+      lookingBody.innerHTML = '';
+      Schema.LOOKING_FOR.forEach(function (o) {
+        lookingBody.append(chip(o.label, state.filters.lookingFor.indexOf(o.value) !== -1, false, null, function () {
+          toggleIn(state.filters.lookingFor, o.value);
+          renderChips();
+          changed();
+        }));
+      });
+      interestsBody.innerHTML = '';
+      Schema.INTERESTS.forEach(function (name) {
+        interestsBody.append(chip(name, state.filters.interests.indexOf(name) !== -1, false, null, function () {
+          toggleIn(state.filters.interests, name);
+          renderChips();
+          changed();
+        }));
+      });
+      languagesBody.innerHTML = '';
+      Schema.LANGUAGES.forEach(function (name) {
+        languagesBody.append(chip(name, state.filters.languages.indexOf(name) !== -1, false, null, function () {
+          toggleIn(state.filters.languages, name);
+          renderChips();
+          changed();
+        }));
+      });
+    }
+    renderChips();
+    reset.disabled = !filtersActive();
+
+    function applySelects() {
       state.filters.minAge = minSel.value();
       state.filters.maxAge = maxSel.value();
       state.filters.maxDistance = distSel.value();
@@ -583,20 +647,64 @@
         state.filters.maxAge = state.filters.minAge;
         maxSel.el.value = String(state.filters.maxAge);
       }
-      if (state.tab === 'discover') render();
+      changed();
     }
 
-    minSel.el.addEventListener('change', applyChanged);
-    maxSel.el.addEventListener('change', applyChanged);
-    distSel.el.addEventListener('change', applyChanged);
+    minSel.el.addEventListener('change', applySelects);
+    maxSel.el.addEventListener('change', applySelects);
+    distSel.el.addEventListener('change', applySelects);
 
     reset.addEventListener('click', function () {
-      state.filters = { minAge: null, maxAge: null, maxDistance: null };
+      state.filters = Filters.defaults();
       minSel.el.value = '';
       maxSel.el.value = '';
       distSel.el.value = '';
-      if (state.tab === 'discover') render();
+      renderChips();
+      changed();
     });
+  }
+
+  function filterSection(label, hintText, body) {
+    const wrap = document.createElement('div');
+    wrap.className = 'flex flex-col gap-2';
+    const name = document.createElement('p');
+    name.className = 'text-sm font-medium text-zinc-300';
+    name.textContent = label;
+    wrap.append(name);
+    if (hintText) wrap.append(hint(hintText));
+    wrap.append(body);
+    return wrap;
+  }
+
+  function chipGroup(role, label) {
+    const g = document.createElement('div');
+    g.className = 'flex flex-wrap gap-2';
+    g.setAttribute('role', role);
+    g.setAttribute('aria-label', label);
+    return g;
+  }
+
+  // Same chip look as Edit Profile's interest and "Looking for" pickers.
+  function chip(label, on, disabled, role, onClick) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (role === 'radio') {
+      b.setAttribute('role', 'radio');
+      b.setAttribute('aria-checked', on ? 'true' : 'false');
+    } else {
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    b.disabled = disabled;
+    b.className = 'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ' +
+      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 ' +
+      (disabled
+        ? 'border-zinc-800 bg-zinc-900 text-zinc-600'
+        : on
+          ? 'border-sky-400/70 bg-sky-500/20 text-sky-100'
+          : 'border-zinc-700 bg-zinc-900 text-zinc-200 hover:border-zinc-500');
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
   }
 
   function selectControl(label, options, value) {

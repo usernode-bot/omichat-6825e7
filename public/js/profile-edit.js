@@ -352,6 +352,38 @@
       interestsErr.textContent = errors.interests || '';
     }
 
+    // -------------------------------------------------------------- languages
+    const languagesSection = section('Languages', 'The languages you are happy to chat in.');
+    languagesSection.dataset.testid = 'edit-languages';
+    const languagesMeta = el('p', 'text-xs text-zinc-500');
+    const languagesBody = el('div', 'flex flex-wrap gap-2');
+    const languagesErr = el('p', 'text-xs text-rose-300');
+    languagesSection.append(languagesMeta, languagesBody, languagesErr);
+    form.append(languagesSection);
+    function renderLanguages() {
+      const full = draft.languages.length >= L.languages;
+      languagesMeta.textContent = draft.languages.length + ' of ' + L.languages + ' selected' +
+        (full ? '. Remove one to pick another.' : '');
+      languagesBody.innerHTML = '';
+      Schema.LANGUAGES.forEach(function (name) {
+        const on = draft.languages.indexOf(name) !== -1;
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        b.disabled = !on && full;
+        b.className = chipCls(on, !on && full);
+        b.textContent = name;
+        b.addEventListener('click', function () {
+          if (on) draft.languages.splice(draft.languages.indexOf(name), 1);
+          else if (draft.languages.length < L.languages) draft.languages.push(name);
+          delete errors.languages;
+          renderLanguages();
+        });
+        languagesBody.append(b);
+      });
+      languagesErr.textContent = errors.languages || '';
+    }
+
     // ---------------------------------------------------------------- prompts
     const promptsSection = section('Prompts', 'Answer up to ' + L.prompts + ' prompts in a sentence or two.');
     promptsSection.dataset.testid = 'edit-prompts';
@@ -539,6 +571,7 @@
       fields.forEach(showFieldError);
       renderPhotos();
       renderInterests();
+      renderLanguages();
       renderPrompts();
       const any = Object.keys(errors).length;
       formError.textContent = any ? 'Check the highlighted fields.' : '';
@@ -626,6 +659,7 @@
     renderPhotos();
     renderLooking();
     renderInterests();
+    renderLanguages();
     renderPrompts();
     root.scroller = scroller;
     return root;

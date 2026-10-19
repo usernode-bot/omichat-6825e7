@@ -52,8 +52,9 @@ window.OmichatData = (function () {
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
 
-  // Full mock profiles. Interests come from the predefined list in
-  // profile-schema.js so "N interests in common" compares like with like.
+  // Full mock profiles. Interests and languages come from the predefined
+  // lists in profile-schema.js so "N interests in common" and the discovery
+  // filters compare like with like.
   // `photoCount` varies (1 to 6) so the gallery shows every size.
   const RAW = [
     {
@@ -65,6 +66,7 @@ window.OmichatData = (function () {
         'neighbourhood and looking for people to explore it with.',
       job: 'Ceramicist', education: 'Fine Arts, City College',
       lookingFor: 'friends',
+      languages: ['English', 'Spanish'],
       interests: ['Ceramics', 'Jazz', 'Street food', 'Film', 'Coffee'],
       prompts: [
         { prompt: 'A fact about me that surprises people...', answer: 'I have thrown over 400 mugs and kept exactly three.' },
@@ -79,6 +81,7 @@ window.OmichatData = (function () {
         'out of town if there is a bakery at the end of it.',
       job: 'Bike mechanic', education: null,
       lookingFor: 'activity',
+      languages: ['English'],
       interests: ['Cycling', 'Karaoke', 'Thrift finds', 'Baking'],
       prompts: [
         { prompt: 'A skill I could teach you...', answer: 'Fixing a flat in under five minutes.' },
@@ -92,6 +95,7 @@ window.OmichatData = (function () {
         'my first half marathon and looking for a running group that does not start at 5am.',
       job: 'ER nurse', education: 'Nursing, State University',
       lookingFor: 'activity',
+      languages: ['English', 'Hindi', 'Tamil'],
       interests: ['Running', 'Cooking', 'Podcasts', 'Hiking'],
       prompts: [
         { prompt: 'A perfect weekend looks like...', answer: 'A long run, a longer brunch, a podcast and a nap.' },
@@ -107,6 +111,7 @@ window.OmichatData = (function () {
         'monthly board game night and always short of players.',
       job: 'Sound engineer', education: 'Electronics, Technical Institute',
       lookingFor: 'hobby',
+      languages: ['German', 'English'],
       interests: ['Synths', 'Board games', 'Coffee', 'Coding'],
       prompts: [
         { prompt: "I'm currently learning...", answer: 'How to solder without burning my thumb.' },
@@ -120,6 +125,7 @@ window.OmichatData = (function () {
         'and someone who will come to gallery openings for the free snacks.',
       job: 'Landscape designer', education: 'Horticulture, Botanical Academy',
       lookingFor: 'friends',
+      languages: ['English', 'French'],
       interests: ['Plants', 'Yoga', 'Galleries', 'Gardening', 'Photography'],
       prompts: [
         { prompt: 'The last thing I got excited about...', answer: 'A cutting that finally grew roots.' },
@@ -134,6 +140,7 @@ window.OmichatData = (function () {
         'for hiking and record shops.',
       job: 'Line cook', education: 'Culinary School',
       lookingFor: 'activity',
+      languages: ['English', 'German'],
       interests: ['Cooking', 'Vinyl', 'Hiking', 'Street food'],
       prompts: [
         { prompt: 'A skill I could teach you...', answer: 'Knife skills. Mind your fingers.' },
@@ -147,6 +154,7 @@ window.OmichatData = (function () {
         'three times a week and always looking for someone to see a film with afterwards.',
       job: 'Architect', education: 'Architecture, Polytechnic',
       lookingFor: 'friends',
+      languages: ['English', 'Arabic'],
       interests: ['Design', 'Swimming', 'Film', 'Photography', 'Travel'],
       prompts: [
         { prompt: 'Ask me about...', answer: 'The ugliest building in the city. I have a list.' },
@@ -159,6 +167,7 @@ window.OmichatData = (function () {
       bio: 'Dog dad to a very loud beagle named Waffle. Bouldering most evenings.',
       job: 'Physio', education: null,
       lookingFor: 'activity',
+      languages: ['English'],
       interests: ['Dogs', 'Bouldering', 'Podcasts', 'Hiking'],
       prompts: [],
       instagram: null, spotify: null,
@@ -170,6 +179,7 @@ window.OmichatData = (function () {
         'language exchange on Thursdays, all levels welcome.',
       job: 'Translator', education: 'Linguistics, University of Porto',
       lookingFor: 'study',
+      languages: ['Portuguese', 'English', 'Spanish', 'French'],
       interests: ['Books', 'Film', 'Languages', 'Writing', 'Travel', 'Coffee'],
       prompts: [
         { prompt: "I'm looking for someone to join me for...", answer: 'A reading group that actually finishes the book.' },
@@ -177,15 +187,16 @@ window.OmichatData = (function () {
       ],
       instagram: null, spotify: 'ines.reads',
     },
-    // Two sparse profiles. Sasha has no age and Milo no distance (the
-    // discovery filters never guess a value for a missing field), and both
-    // skip most of the optional fields so the full profile's empty states
-    // stay real instead of theoretical.
+    // Two sparse profiles. Sasha has no age, languages or "Looking for" and
+    // Milo no distance or interests (the discovery filters never guess a
+    // value for a missing field), and both skip most of the optional fields
+    // so the full profile's empty states stay real instead of theoretical.
     {
       id: 10, seed: 10, name: 'Sasha', age: null, verified: false, distance: 4,
       photoCount: 1,
       bio: 'Night-shift baker. I trade pastries for good playlist recommendations.',
       job: null, education: null, lookingFor: null,
+      languages: [],
       interests: ['Baking', 'Vinyl', 'Swimming'],
       prompts: [], instagram: null, spotify: null,
     },
@@ -194,6 +205,7 @@ window.OmichatData = (function () {
       photoCount: 2,
       bio: '',
       job: 'Cartographer', education: null, lookingFor: 'hobby',
+      languages: ['English'],
       interests: [],
       prompts: [], instagram: null, spotify: null,
     },

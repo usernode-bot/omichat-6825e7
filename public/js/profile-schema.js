@@ -1,5 +1,5 @@
-// Omichat profile schema: the predefined interest and prompt lists, the
-// "Looking for" options, field limits, validation and the completeness
+// Omichat profile schema: the predefined interest, language and prompt
+// lists, the "Looking for" options, field limits, validation and the completeness
 // score. One file, loaded by the page (window.OmichatSchema) AND required by
 // server.js, so the client and the server always validate the same way.
 (function (root, factory) {
@@ -16,6 +16,14 @@
     'Plants', 'Podcasts', 'Running', 'Street food', 'Swimming', 'Synths',
     'Theatre', 'Thrift finds', 'Travel', 'Video games', 'Vinyl',
     'Volunteering', 'Writing', 'Yoga',
+  ];
+
+  const LANGUAGES = [
+    'Arabic', 'Bengali', 'Cantonese', 'Dutch', 'English', 'French', 'German',
+    'Greek', 'Hebrew', 'Hindi', 'Indonesian', 'Italian', 'Japanese', 'Korean',
+    'Mandarin', 'Persian', 'Polish', 'Portuguese', 'Russian', 'Sign language',
+    'Spanish', 'Swahili', 'Tagalog', 'Tamil', 'Thai', 'Turkish', 'Ukrainian',
+    'Urdu', 'Vietnamese',
   ];
 
   const PROMPTS = [
@@ -46,6 +54,7 @@
     answer: 150,
     photos: 6,
     interests: 8,
+    languages: 6,
     prompts: 3,
     minAge: 18,
     maxAge: 99,
@@ -111,6 +120,14 @@
     if (v.interests.length !== interests.length) errors.interests = 'Pick interests from the list.';
     if (v.interests.length > LIMITS.interests) errors.interests = 'Pick up to ' + LIMITS.interests + ' interests.';
 
+    const languages = Array.isArray(input.languages) ? input.languages : [];
+    v.languages = [];
+    languages.forEach(function (l) {
+      if (LANGUAGES.indexOf(l) !== -1 && v.languages.indexOf(l) === -1) v.languages.push(l);
+    });
+    if (v.languages.length !== languages.length) errors.languages = 'Pick languages from the list.';
+    if (v.languages.length > LIMITS.languages) errors.languages = 'Pick up to ' + LIMITS.languages + ' languages.';
+
     const prompts = Array.isArray(input.prompts) ? input.prompts : [];
     v.prompts = [];
     if (prompts.length > LIMITS.prompts) errors.prompts = 'Choose up to ' + LIMITS.prompts + ' prompts.';
@@ -169,7 +186,7 @@
   function empty() {
     return {
       name: null, age: null, bio: null, job: null, education: null,
-      lookingFor: null, interests: [], prompts: [], instagram: null,
+      lookingFor: null, interests: [], languages: [], prompts: [], instagram: null,
       spotify: null, photos: [],
     };
   }
@@ -192,6 +209,7 @@
 
   return {
     INTERESTS: INTERESTS,
+    LANGUAGES: LANGUAGES,
     PROMPTS: PROMPTS,
     LOOKING_FOR: LOOKING_FOR,
     LIMITS: LIMITS,

@@ -130,12 +130,19 @@ session state. Persisted, per-account features: verification
   handles are personal information). Nothing is seeded for it: an empty
   profile is the real first-run state, and the completeness hints start
   from there.
-- Discovery filters (age range, max distance) open from the pill above the
-  Discover deck or the header sliders button, and live-filter the deck. A
-  profile missing an age or a distance shows only while that filter is
-  unset; the deck never guesses a value for missing data. Two sparse mock
-  profiles (`Sasha`, `Milo`) exercise this and the full profile's empty
-  states.
+- Discovery filters (age range, max distance, online now, "Looking for",
+  interests, languages) live in `public/js/discovery-filters.js` (shared with
+  `tests/discovery-filters.test.js`). They open from the pill above the
+  Discover deck or the header sliders button, live-filter the deck, and are
+  remembered in `sessionStorage` for the browsing session. Lists match on
+  any overlap. A profile missing a field shows only while that field's
+  filter is unset; the deck never guesses a value for missing data. Two
+  sparse mock profiles (`Sasha`, `Milo`) exercise this and the full
+  profile's empty states. The online filter is unavailable while the viewer
+  hides their own online status. Keep it "Looking for", never relationship
+  intentions or any dating framing.
+- Languages are a profile field (`profile-schema.js` `LANGUAGES`, up to 6),
+  edited on Edit Profile and listed in the full profile's Details.
 - Safety and Trust (Phase 1 of that roadmap) lives behind one service layer,
   `public/js/safety.js` (reports, blocks, selfie verification, privacy, age
   gate), backed by localStorage and mock latency; UI is `safety-ui.js`. Swap
