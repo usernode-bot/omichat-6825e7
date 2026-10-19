@@ -188,6 +188,8 @@
     const list = el('div', 'divide-y divide-zinc-800');
     list.append(
       detailRow('search', 'Looking for', Schema.lookingForLabel(profile.lookingFor)),
+      detailRow('languages', 'Languages',
+        profile.languages && profile.languages.length ? profile.languages.join(', ') : null),
       detailRow('briefcase', 'Job', profile.job),
       detailRow('graduation-cap', 'Education', profile.education)
     );
