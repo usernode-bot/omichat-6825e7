@@ -153,6 +153,14 @@
       "expectSelector": "[data-testid=\"my-profile\"] [data-testid=\"profile-cover-empty\"]"
     },
     {
+      "id": "messages.thread-menu",
+      "name": "Each conversation in Messages has a three-dot menu",
+      "path": "/#messages",
+      "expectSelector": "[data-testid=\"thread-row\"] [data-thread-menu]",
+      "visual": true,
+      "impact": ["public/**"]
+    },
+    {
       "id": "safety.privacy-row",
       "name": "Profile lists Privacy and Selfie verification",
       "path": "/#profile",

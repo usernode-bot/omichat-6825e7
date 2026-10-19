@@ -227,28 +227,28 @@ window.OmichatData = (function () {
   // Mock message threads. Like everything else in Phase 1 these are static
   // demo data so the Messages tab has something to show before matching and
   // chat arrive. `last` is the preview row; `at` is a relative label, not a
-  // timestamp. kinds: 'text' (from either side), 'hi' and 'connection'
-  // (system messages).
+  // timestamp; `id` is stable so a message report can name it. kinds:
+  // 'text' (from either side), 'hi' and 'connection' (system messages).
   const THREADS = [
     {
       profileId: 1,
       unread: 2,
-      last: { kind: 'text', from: 'them', text: 'The glaze accident was on purpose, I swear.', at: '2h' },
+      last: { id: 'm-1', kind: 'text', from: 'them', text: 'The glaze accident was on purpose, I swear.', at: '2h' },
     },
     {
       profileId: 2,
       unread: 0,
-      last: { kind: 'connection', from: 'system', text: 'You connected with Zoe', at: '5h' },
+      last: { id: 'm-2', kind: 'connection', from: 'system', text: 'You connected with Zoe', at: '5h' },
     },
     {
       profileId: 4,
       unread: 0,
-      last: { kind: 'text', from: 'me', text: 'Fair. Which board game should I bring?', at: '1d' },
+      last: { id: 'm-3', kind: 'text', from: 'me', text: 'Fair. Which board game should I bring?', at: '1d' },
     },
     {
       profileId: 5,
       unread: 1,
-      last: { kind: 'hi', from: 'them', text: 'Amara said hi', at: '2d' },
+      last: { id: 'm-4', kind: 'hi', from: 'them', text: 'Amara said hi', at: '2d' },
     },
   ];
 

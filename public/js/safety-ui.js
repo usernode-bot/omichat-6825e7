@@ -1,5 +1,5 @@
-// Omichat Safety and Trust UI: the card menu (Report / Block), the report
-// sheet, the block confirmation, the "What does Verified mean?" modal, the
+// Omichat Safety and Trust UI: the card and conversation menus (Report
+// message / Report / Block), the report sheet, the block confirmation, the "What does Verified mean?" modal, the
 // selfie verification flow, the Privacy sheet and the 18+ age gate.
 //
 // All data goes through OmichatSafety.services() (see safety.js), so none
@@ -111,12 +111,21 @@
     return b;
   }
 
-  function openMenu(profile) {
+  // opts.thread: opened from a conversation in Messages; its last message
+  // can be reported on its own when someone else sent it.
+  function openMenu(profile, opts) {
+    opts = opts || {};
     const content = el('div', 'px-5 pt-2 pb-7 flex flex-col gap-3');
-    content.dataset.testid = 'card-menu';
+    content.dataset.testid = opts.thread ? 'thread-menu' : 'card-menu';
     content.append(el('h2', 'text-lg font-bold text-zinc-100', profile.name));
     const list = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
     let s;
+    const last = opts.thread && opts.thread.last;
+    if (Safety.canReportMessage(last)) {
+      list.append(menuRow('message-circle', 'Report message', function () {
+        s.dismiss(); openReport(profile, { message: last });
+      }));
+    }
     list.append(
       menuRow('flag', 'Report', function () { s.dismiss(); openReport(profile); }),
       menuRow('ban', 'Block', function () { s.dismiss(); openBlock(profile); }, true)
@@ -127,18 +136,28 @@
 
   // ---------------------------------------------------------------- report
 
-  function openReport(profile) {
+  // opts.message: report that one message (shown quoted) instead of the
+  // whole profile, with the reasons made for messages.
+  function openReport(profile, opts) {
+    const message = opts && opts.message;
     const content = el('form', 'px-5 pt-2 pb-7 flex flex-col gap-4');
     content.dataset.testid = 'report-sheet';
     content.noValidate = true;
-    content.append(el('h2', 'text-lg font-bold text-zinc-100', 'Report ' + profile.name));
+    content.append(el('h2', 'text-lg font-bold text-zinc-100',
+      message ? 'Report message from ' + profile.name : 'Report ' + profile.name));
     content.append(el('p', 'text-sm text-zinc-400', 'Tell us what is wrong. We keep your report private.'));
+    if (message) {
+      const quote = el('blockquote', 'border-l-[3px] rounded-lg bg-zinc-800 px-3 py-2 text-sm text-zinc-300', message.text);
+      quote.dataset.testid = 'reported-message';
+      quote.style.borderLeftColor = profile.accent || '#38bdf8';
+      content.append(quote);
+    }
 
     let chosen = null;
     const group = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
     group.setAttribute('role', 'radiogroup');
     group.setAttribute('aria-label', 'Reason');
-    Safety.REPORT_REASONS.forEach(function (r) {
+    Safety.reasonsFor(message ? 'message' : 'profile').forEach(function (r) {
       const row = el('label',
         'flex items-center gap-3 px-4 py-3 text-sm text-zinc-200 cursor-pointer hover:bg-zinc-800/60');
       const input = el('input', 'w-4 h-4 accent-sky-500 ' + FOCUS);
@@ -179,7 +198,13 @@
       send.textContent = 'Sending…';
       try {
         await Safety.services().reports.submit({
-          profileId: profile.id, reason: chosen, note: note.value,
+          targetType: message ? 'message' : 'profile',
+          profileId: profile.id,
+          targetName: profile.name,
+          messageId: message ? message.id : undefined,
+          messageText: message ? message.text : undefined,
+          reason: chosen,
+          note: note.value,
         });
         s.dismiss();
         host.toast('Report sent. Thank you.');
@@ -200,7 +225,7 @@
     content.append(
       el('h2', 'text-lg font-bold text-zinc-100', 'Block ' + profile.name + '?'),
       el('p', 'text-sm text-zinc-400',
-        profile.name + ' will be removed from Discover, Matches and Messages. ' +
+        profile.name + ' will be removed from Discover, Hellos and Messages. ' +
         'You will not see each other again, and this cannot be undone.')
     );
     const err = errorLine();
@@ -213,7 +238,7 @@
       cancel.disabled = true;
       confirm.textContent = 'Blocking…';
       try {
-        await Safety.services().blocks.block(profile.id);
+        await Safety.services().blocks.block(profile.id, profile.name);
         s.dismiss();
         host.toast(profile.name + ' is blocked');
         if (host.onChange) host.onChange();
@@ -533,19 +558,128 @@
     return row;
   }
 
+  // A "Who can…" row: the current choice in the accent, opening a picker.
+  function choiceRow(label, hintText, key, settings, onOpen) {
+    const b = el('button',
+      'w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-zinc-800/60 transition-colors ' +
+      FOCUS + ' focus-visible:ring-inset');
+    b.type = 'button';
+    b.dataset.setting = key;
+    const text = el('div', 'flex-1 min-w-0');
+    text.append(el('p', 'text-sm font-medium text-zinc-200', label), el('p', 'text-xs text-zinc-400 mt-0.5', hintText));
+    const value = el('span', 'shrink-0 text-xs text-sky-300', audienceLabel(settings[key]));
+    const chev = el('span', 'shrink-0 text-zinc-600');
+    chev.innerHTML = icon('chevron-right', 'w-4 h-4');
+    b.append(text, value, chev);
+    b.setAttribute('aria-label', label + ': ' + audienceLabel(settings[key]));
+    b.addEventListener('click', onOpen);
+    return b;
+  }
+
+  function audienceLabel(id) {
+    const a = Safety.AUDIENCES.find(function (x) { return x.id === id; });
+    return a ? a.label : '';
+  }
+
+  // Three radio rows, saved on tap. The choice shows at once and rolls back
+  // if the save fails. Closing it returns to the Privacy sheet.
+  function openAudiencePicker(key, title, onClosed) {
+    const content = el('div', 'px-5 pt-2 pb-7 flex flex-col gap-4');
+    content.dataset.testid = 'audience-picker';
+    content.append(el('h2', 'text-lg font-bold text-zinc-100', title));
+    const group = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
+    group.setAttribute('role', 'radiogroup');
+    group.setAttribute('aria-label', title);
+    let current = Safety.services().privacy.get()[key];
+    let saving = false;
+    const inputs = [];
+    let s;
+    Safety.AUDIENCES.forEach(function (a) {
+      const row = el('label',
+        'flex items-center gap-3 px-4 py-3 text-sm text-zinc-200 cursor-pointer hover:bg-zinc-800/60');
+      const input = el('input', 'w-4 h-4 accent-sky-500 ' + FOCUS);
+      input.type = 'radio';
+      input.name = 'audience-' + key;
+      input.value = a.id;
+      input.checked = a.id === current;
+      inputs.push(input);
+      input.addEventListener('change', async function () {
+        if (saving || a.id === current) return;
+        saving = true;
+        const before = current;
+        try {
+          await Safety.services().privacy.update({ [key]: a.id });
+          current = a.id;
+          if (host.onChange) host.onChange();
+          s.dismiss();
+        } catch (e) {
+          inputs.forEach(function (i) { i.checked = i.value === before; });
+          host.toast('Could not save that setting. Try again.');
+        }
+        saving = false;
+      });
+      row.append(input, el('span', 'flex-1', a.label));
+      group.append(row);
+    });
+    content.append(group);
+    s = sheet(content, onClosed);
+  }
+
+  function blockedList() {
+    const entries = Safety.services().blocks.entries ? Safety.services().blocks.entries() : [];
+    if (!entries.length) return null;
+    const wrap = el('div', 'flex flex-col gap-2');
+    wrap.dataset.testid = 'blocked-people';
+    wrap.append(el('p', 'text-xs font-medium uppercase tracking-wide text-zinc-400', 'Blocked people'));
+    const group = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
+    const Data = window.OmichatData;
+    entries.forEach(function (b) {
+      const id = Safety.mockIdFromKey(b.key);
+      const p = id != null && Data ? Data.byId.get(id) : null;
+      const name = b.name || (p ? p.name : 'Someone');
+      const when = b.at
+        ? 'Blocked ' + new Date(b.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + '. '
+        : '';
+      const row = el('div', 'px-4 py-3');
+      row.append(el('p', 'text-sm font-medium text-zinc-200', name),
+        el('p', 'text-xs text-zinc-400 mt-0.5', when + "Blocks can't be undone."));
+      group.append(row);
+    });
+    wrap.append(group);
+    return wrap;
+  }
+
   function openPrivacy() {
     const content = el('div', 'px-5 pt-2 pb-7 flex flex-col gap-4');
     content.dataset.testid = 'privacy-sheet';
     content.append(el('h2', 'text-lg font-bold text-zinc-100', 'Privacy'));
     const settings = Safety.services().privacy.get();
-    const group = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
     function saved() { if (host.onChange) host.onChange(); }
+    let s;
+    function pick(key, title) {
+      return function () {
+        s.dismiss();
+        openAudiencePicker(key, title, openPrivacy);
+      };
+    }
+    const choices = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
+    choices.append(
+      choiceRow('Who can message you', 'Blocked people can never message you.', 'whoCanMessage', settings,
+        pick('whoCanMessage', 'Who can message you')),
+      choiceRow('Who can see your profile', 'Controls who finds you in Discover.', 'whoCanSeeProfile', settings,
+        pick('whoCanSeeProfile', 'Who can see your profile'))
+    );
+    content.append(choices);
+    const group = el('div', 'rounded-2xl border border-zinc-800 divide-y divide-zinc-800 bg-zinc-900/60 overflow-hidden');
     group.append(
       toggleRow('Hide my distance', 'Distance is hidden on profiles you see.', 'hideDistance', settings, saved),
-      toggleRow('Hide my online status', 'Online and Active now labels are hidden.', 'hideOnlineStatus', settings, saved)
+      toggleRow('Show my online status',
+        "When off, nobody sees when you were last active, and you don't see theirs.",
+        'showOnlineStatus', settings, saved)
     );
     content.append(group);
-    let s;
+    const blocked = blockedList();
+    if (blocked) content.append(blocked);
     content.append(UI.Button('Done', { onClick: function () { s.dismiss(); } }));
     s = sheet(content);
   }

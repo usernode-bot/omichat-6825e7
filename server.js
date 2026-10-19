@@ -6,6 +6,8 @@ const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 // Shared with the page: interest/prompt lists, validation, completeness.
 const ProfileSchema = require('./public/js/profile-schema.js');
+// Shared with the page: privacy defaults and rules, report reasons.
+const Safety = require('./public/js/safety.js');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -200,6 +202,70 @@ async function ensureSchema() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )`);
   await pool.query(`COMMENT ON TABLE profiles IS 'staging:private'`);
+  // Safety, saved per account. Who blocked whom, report notes and message
+  // snapshots, and privacy choices are all personal: staging copies the
+  // schema only. Targets are keys: `mock:<id>` for sample profiles,
+  // `user:<platform id>` for real accounts.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS blocks (
+      blocker_id   TEXT NOT NULL,
+      blocked_key  TEXT NOT NULL,
+      blocked_name TEXT,
+      created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (blocker_id, blocked_key)
+    )`);
+  await pool.query('CREATE INDEX IF NOT EXISTS blocks_blocked_key_idx ON blocks (blocked_key)');
+  await pool.query(`COMMENT ON TABLE blocks IS 'staging:private'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id                SERIAL PRIMARY KEY,
+      reporter_id       TEXT NOT NULL,
+      reporter_username TEXT NOT NULL,
+      target_type       TEXT NOT NULL,
+      target_key        TEXT NOT NULL,
+      target_name       TEXT,
+      message_id        TEXT,
+      message_text      TEXT,
+      reason            TEXT NOT NULL,
+      note              TEXT NOT NULL DEFAULT '',
+      status            TEXT NOT NULL DEFAULT 'open',
+      created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+      reviewed_at       TIMESTAMPTZ,
+      reviewed_by       TEXT
+    )`);
+  // One open report per reporter per person or message.
+  await pool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS reports_one_open_idx
+    ON reports (reporter_id, target_key, (COALESCE(message_id, '')))
+    WHERE status = 'open'`);
+  await pool.query(`COMMENT ON TABLE reports IS 'staging:private'`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS privacy_settings (
+      user_id    TEXT PRIMARY KEY,
+      data       JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`);
+  await pool.query(`COMMENT ON TABLE privacy_settings IS 'staging:private'`);
+  if (IS_STAGING) {
+    // A few open reports from fake identities, so project members see the
+    // Reports to review queue. Blocks and privacy settings are never
+    // seeded: no rows is the real first-run answer.
+    const demoReports = [
+      [900001, 'staging-demo-user-1', 'Staging demo user 1', 'profile', 'mock:3', 'Priya', null, null,
+        'spam', 'Staging demo report: same text sent to everyone'],
+      [900002, 'staging-demo-user-2', 'Staging demo user 2', 'message', 'mock:1', 'Maya', 'm-1',
+        'The glaze accident was on purpose, I swear.', 'harassment', 'Staging demo report'],
+      [900003, 'staging-demo-user-2', 'Staging demo user 2', 'profile', 'mock:6', 'Felix', null, null,
+        'fake', 'Staging demo report: photos look copied'],
+    ];
+    for (const r of demoReports) {
+      await pool.query(
+        `INSERT INTO reports (id, reporter_id, reporter_username, target_type, target_key, target_name,
+           message_id, message_text, reason, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT DO NOTHING`, r);
+    }
+  }
   dbReady = true;
 }
 
@@ -520,6 +586,207 @@ app.put('/api/profile', async (req, res) => {
   } catch (err) {
     console.error('profile save failed', err.message);
     res.status(500).json({ error: 'Could not save your profile' });
+  }
+});
+
+// ------------------------------------------------------------------ safety
+// Blocks, reports and privacy settings for the signed-in account. Blocks are
+// permanent: there is deliberately no route that removes one.
+
+const REPORTS_PER_DAY = 20;
+const IMPORT_BLOCKS_MAX = 200;
+
+async function loadSafety(userId) {
+  const [settings, blocked] = await Promise.all([
+    pool.query('SELECT data FROM privacy_settings WHERE user_id = $1', [userId]),
+    pool.query(
+      `SELECT blocked_key AS key, blocked_name AS name, created_at AS at
+       FROM blocks WHERE blocker_id = $1 ORDER BY created_at ASC`, [userId]),
+  ]);
+  return {
+    privacy: Safety.normalizePrivacy(settings.rows[0] && settings.rows[0].data),
+    blocked: blocked.rows,
+  };
+}
+
+// Whether either of two accounts blocked the other, and how they are
+// related, seen from `aId`'s seat (the shape Safety.canMessage and
+// Safety.canSeeProfile take). Hellos and connections are not stored yet,
+// so only the block is known. Nothing calls these today, because no route
+// lists other real people or sends messages: they are the required gate
+// for the real Discover and chat endpoints when those arrive.
+async function isBlockedEither(aId, bId) {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM blocks
+     WHERE (blocker_id = $1 AND blocked_key = $2) OR (blocker_id = $3 AND blocked_key = $4)
+     LIMIT 1`,
+    [String(aId), 'user:' + bId, String(bId), 'user:' + aId]);
+  return rows.length > 0;
+}
+
+async function relationBetween(aId, bId) {
+  return { blocked: await isBlockedEither(aId, bId), saidHi: false, connected: false };
+}
+
+app.get('/api/safety', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Safety settings are not available here' });
+  try {
+    const safety = await loadSafety(req.user.id);
+    safety.canReview = (await reviewerIds(req)).has(String(req.user.id));
+    res.json(safety);
+  } catch (err) {
+    console.error('safety load failed', err.message);
+    res.status(500).json({ error: 'Could not load your safety settings' });
+  }
+});
+
+app.put('/api/privacy', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Safety settings are not available here' });
+  try {
+    const current = await pool.query('SELECT data FROM privacy_settings WHERE user_id = $1', [req.user.id]);
+    const { value, errors } = Safety.validatePrivacy(req.body && req.body.privacy,
+      Safety.normalizePrivacy(current.rows[0] && current.rows[0].data));
+    if (Object.keys(errors).length) {
+      return res.status(400).json({ error: 'Could not save that setting. Try again.', fields: errors });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO privacy_settings (user_id, data, updated_at) VALUES ($1, $2::jsonb, now())
+       ON CONFLICT (user_id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()
+       RETURNING data`,
+      [req.user.id, JSON.stringify(value)]);
+    res.json({ privacy: Safety.normalizePrivacy(rows[0].data) });
+  } catch (err) {
+    console.error('privacy save failed', err.message);
+    res.status(500).json({ error: 'Could not save that setting. Try again.' });
+  }
+});
+
+app.post('/api/blocks', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Blocking is not available here' });
+  const key = String((req.body && req.body.key) || '');
+  const name = String((req.body && req.body.name) || '').trim().slice(0, 100) || null;
+  if (!Safety.isTargetKey(key)) return res.status(400).json({ error: 'Choose someone to block.' });
+  if (key === 'user:' + req.user.id) return res.status(400).json({ error: 'You cannot block yourself.' });
+  try {
+    await pool.query(
+      `INSERT INTO blocks (blocker_id, blocked_key, blocked_name) VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING`, [req.user.id, key, name]);
+    res.json({ blocked: (await loadSafety(req.user.id)).blocked });
+  } catch (err) {
+    console.error('block failed', err.message);
+    res.status(500).json({ error: 'Could not block this person. Try again.' });
+  }
+});
+
+// One-time copy of what an older version kept on the device. Blocks are
+// always merged (they are permanent, so keeping one is never wrong); the
+// device's privacy switches are taken only when the account has none yet.
+app.post('/api/safety/import', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Safety settings are not available here' });
+  const body = req.body || {};
+  const blocked = (Array.isArray(body.blocked) ? body.blocked : [])
+    .slice(0, IMPORT_BLOCKS_MAX)
+    .filter((b) => b && Safety.isTargetKey(b.key) && b.key !== 'user:' + req.user.id);
+  try {
+    for (const b of blocked) {
+      await pool.query(
+        `INSERT INTO blocks (blocker_id, blocked_key, blocked_name) VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [req.user.id, b.key, String(b.name || '').trim().slice(0, 100) || null]);
+    }
+    if (body.privacy && typeof body.privacy === 'object') {
+      await pool.query(
+        `INSERT INTO privacy_settings (user_id, data) VALUES ($1, $2::jsonb)
+         ON CONFLICT (user_id) DO NOTHING`,
+        [req.user.id, JSON.stringify(Safety.normalizePrivacy(body.privacy))]);
+    }
+    const safety = await loadSafety(req.user.id);
+    safety.canReview = (await reviewerIds(req)).has(String(req.user.id));
+    res.json(safety);
+  } catch (err) {
+    console.error('safety import failed', err.message);
+    res.status(500).json({ error: 'Could not copy your settings.' });
+  }
+});
+
+app.post('/api/reports', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Reports are not available here' });
+  const { value, error } = Safety.validateReport(req.body);
+  if (error) return res.status(400).json({ error });
+  if (value.targetKey === 'user:' + req.user.id) {
+    return res.status(400).json({ error: 'You cannot report yourself.' });
+  }
+  const findOpen = () => pool.query(
+    `SELECT id FROM reports
+     WHERE reporter_id = $1 AND target_key = $2 AND COALESCE(message_id, '') = COALESCE($3, '')
+       AND status = 'open'`,
+    [req.user.id, value.targetKey, value.messageId]);
+  try {
+    // Reporting the same thing again while it waits is not a new report.
+    const open = await findOpen();
+    if (open.rows.length) return res.json({ id: open.rows[0].id });
+    const recent = await pool.query(
+      `SELECT count(*)::int AS n FROM reports
+       WHERE reporter_id = $1 AND created_at > now() - interval '24 hours'`, [req.user.id]);
+    if (recent.rows[0].n >= REPORTS_PER_DAY) {
+      return res.status(429).json({ error: 'You have sent a lot of reports today. Try again tomorrow.' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO reports (reporter_id, reporter_username, target_type, target_key, target_name,
+         message_id, message_text, reason, note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [req.user.id, req.user.username || '', value.targetType, value.targetKey,
+        value.targetName || null, value.messageId, value.messageText, value.reason, value.note]);
+    if (rows.length) return res.json({ id: rows[0].id });
+    // Lost a race with an identical report: answer with that one.
+    const again = await findOpen();
+    res.json({ id: again.rows[0] ? again.rows[0].id : null });
+  } catch (err) {
+    console.error('report failed', err.message);
+    res.status(500).json({ error: 'Could not send the report. Try again.' });
+  }
+});
+
+app.get('/api/reports/pending', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Reports are not available here' });
+  if (!(await reviewerIds(req)).has(String(req.user.id))) {
+    return res.status(403).json({ error: 'Not a reviewer' });
+  }
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, reporter_username, target_type, target_key, target_name, message_id,
+         message_text, reason, note, created_at
+       FROM reports WHERE status = 'open'
+       ORDER BY created_at ASC, id ASC LIMIT 50`);
+    res.json({ reports: rows });
+  } catch (err) {
+    console.error('report queue failed', err.message);
+    res.status(500).json({ error: 'Could not load the reports' });
+  }
+});
+
+app.post('/api/reports/:id/review', async (req, res) => {
+  if (!dbReady) return res.status(503).json({ error: 'Reports are not available here' });
+  if (!(await reviewerIds(req)).has(String(req.user.id))) {
+    return res.status(403).json({ error: 'Not a reviewer' });
+  }
+  const id = Number(req.params.id);
+  const decision = String((req.body && req.body.decision) || '');
+  if (!Number.isInteger(id) || (decision !== 'reviewed' && decision !== 'dismissed')) {
+    return res.status(400).json({ error: 'Expected a report and a decision' });
+  }
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE reports SET status = $2, reviewed_at = now(), reviewed_by = $3
+       WHERE id = $1 AND status = 'open'`,
+      [id, decision, req.user.username || String(req.user.id)]);
+    if (!rowCount) return res.status(404).json({ error: 'That report is no longer open' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('report review failed', err.message);
+    res.status(500).json({ error: 'Could not save the decision. Try again.' });
   }
 });
 
