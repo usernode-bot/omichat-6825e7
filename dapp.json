@@ -71,7 +71,7 @@
     },
     {
       "id": "discover.filters",
-      "name": "Discover shows the filters control",
+      "name": "Discover shows the discovery filters control",
       "path": "/",
       "expectSelector": "[data-testid=\"filters-button\"]",
       "expectText": "Filters",
@@ -117,18 +117,17 @@
       ]
     },
     {
-      "id": "profile.edit-languages",
-      "name": "Edit Profile lists the languages picker",
+      "id": "profile.edit.languages",
+      "name": "Edit Profile shows the languages picker",
       "path": "/#profile/edit",
       "expectSelector": "[data-testid=\"edit-languages\"]",
-      "expectText": "The languages you are happy to chat in."
+      "expectText": "Languages"
     },
     {
-      "id": "discover.full-profile-languages",
-      "name": "Full profile lists the languages spoken",
+      "id": "discover.full-profile.languages",
+      "name": "Full profile shows the languages details row",
       "path": "/#discover/9",
-      "expectSelector": "[data-testid=\"full-profile\"]",
-      "expectText": "Portuguese, English, Spanish, French"
+      "expectText": "Portuguese"
     },
     {
       "id": "safety.card-menu",

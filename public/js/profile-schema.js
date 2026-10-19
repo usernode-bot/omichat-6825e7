@@ -46,6 +46,13 @@
     { value: 'hobby', label: 'Hobby groups' },
   ];
 
+  const LANGUAGES = [
+    'Arabic', 'Bengali', 'Cantonese', 'Dutch', 'English', 'French', 'German',
+    'Greek', 'Hindi', 'Indonesian', 'Italian', 'Japanese', 'Korean',
+    'Mandarin', 'Polish', 'Portuguese', 'Russian', 'Spanish', 'Swahili',
+    'Swedish', 'Tagalog', 'Turkish', 'Ukrainian', 'Vietnamese',
+  ];
+
   const LIMITS = {
     name: 40,
     bio: 500,
@@ -186,8 +193,8 @@
   function empty() {
     return {
       name: null, age: null, bio: null, job: null, education: null,
-      lookingFor: null, interests: [], languages: [], prompts: [], instagram: null,
-      spotify: null, photos: [],
+      lookingFor: null, interests: [], languages: [], prompts: [],
+      instagram: null, spotify: null, photos: [],
     };
   }
 
@@ -212,6 +219,7 @@
     LANGUAGES: LANGUAGES,
     PROMPTS: PROMPTS,
     LOOKING_FOR: LOOKING_FOR,
+    LANGUAGES: LANGUAGES,
     LIMITS: LIMITS,
     lookingForLabel: lookingForLabel,
     validate: validate,

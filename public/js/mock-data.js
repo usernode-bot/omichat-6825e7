@@ -73,6 +73,7 @@ window.OmichatData = (function () {
         { prompt: "I'm looking for someone to join me for...", answer: 'Sunday morning flea markets, then dumplings.' },
       ],
       instagram: 'maya.makes.mugs', spotify: null,
+      languages: ['English', 'Spanish'],
     },
     {
       id: 2, seed: 2, name: 'Zoe', age: 24, verified: false, distance: 5,
@@ -87,6 +88,7 @@ window.OmichatData = (function () {
         { prompt: 'A skill I could teach you...', answer: 'Fixing a flat in under five minutes.' },
       ],
       instagram: null, spotify: 'zoe_rides',
+      languages: ['English'],
     },
     {
       id: 3, seed: 3, name: 'Priya', age: 29, verified: true, distance: 2,
@@ -103,6 +105,7 @@ window.OmichatData = (function () {
         { prompt: 'Ask me about...', answer: 'The best trail within an hour of the city.' },
       ],
       instagram: 'priya.runs', spotify: 'priyaplaylists',
+      languages: ['English', 'Hindi'],
     },
     {
       id: 4, seed: 4, name: 'Jonas', age: 31, verified: false, distance: 7,
@@ -117,6 +120,7 @@ window.OmichatData = (function () {
         { prompt: "I'm currently learning...", answer: 'How to solder without burning my thumb.' },
       ],
       instagram: null, spotify: null,
+      languages: ['German', 'English'],
     },
     {
       id: 5, seed: 5, name: 'Amara', age: 27, verified: true, distance: 4,
@@ -132,6 +136,7 @@ window.OmichatData = (function () {
         { prompt: "A hobby I'd love to pick up...", answer: 'Film photography. I already own the camera.' },
       ],
       instagram: 'amara.grows', spotify: null,
+      languages: ['English', 'French'],
     },
     {
       id: 6, seed: 6, name: 'Felix', age: 25, verified: false, distance: 6,
@@ -146,6 +151,7 @@ window.OmichatData = (function () {
         { prompt: 'A skill I could teach you...', answer: 'Knife skills. Mind your fingers.' },
       ],
       instagram: null, spotify: 'felixspins',
+      languages: ['German', 'French'],
     },
     {
       id: 7, seed: 7, name: 'Noor', age: 30, verified: true, distance: 3,
@@ -160,6 +166,7 @@ window.OmichatData = (function () {
         { prompt: 'Ask me about...', answer: 'The ugliest building in the city. I have a list.' },
       ],
       instagram: 'noor.draws.lines', spotify: null,
+      languages: ['Arabic', 'English'],
     },
     {
       id: 8, seed: 8, name: 'Theo', age: 28, verified: false, distance: 8,
@@ -171,6 +178,7 @@ window.OmichatData = (function () {
       interests: ['Dogs', 'Bouldering', 'Podcasts', 'Hiking'],
       prompts: [],
       instagram: null, spotify: null,
+      languages: ['English'],
     },
     {
       id: 9, seed: 9, name: 'Ines', age: 26, verified: true, distance: 5,
@@ -186,11 +194,14 @@ window.OmichatData = (function () {
         { prompt: 'A fact about me that surprises people...', answer: 'I learned English from cooking shows.' },
       ],
       instagram: null, spotify: 'ines.reads',
+      languages: ['Portuguese', 'English', 'French'],
     },
-    // Two sparse profiles. Sasha has no age, languages or "Looking for" and
-    // Milo no distance or interests (the discovery filters never guess a
-    // value for a missing field), and both skip most of the optional fields
-    // so the full profile's empty states stay real instead of theoretical.
+    // Two sparse profiles. Sasha has no age and Milo no distance (the
+    // discovery filters never guess a value for a missing field), and both
+    // have no languages and no lastActiveMin, so the missing-field rules for
+    // those filters stay exercised too. Both skip most of the optional
+    // fields so the full profile's empty states stay real instead of
+    // theoretical.
     {
       id: 10, seed: 10, name: 'Sasha', age: null, verified: false, distance: 4,
       photoCount: 1,

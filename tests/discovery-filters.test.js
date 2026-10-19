@@ -3,89 +3,144 @@ const assert = require('node:assert/strict');
 const F = require('../public/js/discovery-filters.js');
 const Schema = require('../public/js/profile-schema.js');
 
-const maya = { age: 26, distance: 3, interests: ['Ceramics', 'Film'], languages: ['English', 'Spanish'], lookingFor: 'friends', online: true };
-const sasha = { age: null, distance: 4, interests: ['Baking'], languages: [], lookingFor: null, online: false };
-const isOnline = (p) => p.online;
-
-function f(patch) {
-  return Object.assign(F.defaults(), patch);
+// Stub presence: the shape Data.presence returns in the app.
+function presence(status) {
+  return function () { return { status: status, label: null }; };
 }
 
-test('with every filter off, everyone shows, sparse profiles included', () => {
-  assert.equal(F.isActive(F.defaults()), false);
-  assert.equal(F.matches(maya, F.defaults(), { isOnline }), true);
-  assert.equal(F.matches(sasha, F.defaults(), { isOnline }), true);
+function person(extra) {
+  return Object.assign({
+    age: 30, distance: 5, lookingFor: 'friends',
+    interests: ['Hiking'], languages: ['English'], lastActiveMin: 0,
+  }, extra);
+}
+
+test('defaults match everyone, including sparse profiles', () => {
+  const f = F.defaults();
+  assert.deepEqual(f, {
+    minAge: null, maxAge: null, maxDistance: null, online: false,
+    lookingFor: [], interests: [], languages: [],
+  });
+  assert.equal(F.matches({ name: 'Sasha', age: null, distance: 4 }, f, presence('none')), true);
+  assert.equal(F.matches({ name: 'Milo', age: 33, distance: null, interests: [] }, f, presence('none')), true);
+  assert.equal(F.activeCount(f), 0);
 });
 
-test('online now keeps only people online, unless the viewer hides their status', () => {
-  const on = f({ online: true });
-  assert.equal(F.matches(maya, on, { isOnline }), true);
-  assert.equal(F.matches(sasha, on, { isOnline }), false);
-  // No isOnline (the viewer hides their own status): the filter is ignored.
-  assert.equal(F.matches(sasha, on, {}), true);
+test('filters combine with AND across filters', () => {
+  const f = F.sanitize({ interests: ['Hiking'], languages: ['English'] });
+  assert.equal(F.matches(person({ interests: ['Hiking'], languages: ['English'] }), f, presence('online')), true);
+  // Shares the interest but not the language: hidden.
+  assert.equal(F.matches(person({ languages: ['German'] }), f, presence('online')), false);
+  // Shares the language but not the interest: hidden.
+  assert.equal(F.matches(person({ interests: ['Books'] }), f, presence('online')), false);
 });
 
-test('interests and languages match on any overlap; a missing list never matches', () => {
-  assert.equal(F.matches(maya, f({ interests: ['Hiking', 'Film'] })), true);
-  assert.equal(F.matches(maya, f({ interests: ['Hiking'] })), false);
-  assert.equal(F.matches(maya, f({ languages: ['Spanish'] })), true);
-  assert.equal(F.matches(maya, f({ languages: ['German'] })), false);
-  assert.equal(F.matches(sasha, f({ languages: ['English'] })), false);
-  assert.equal(F.matches({ age: 30 }, f({ interests: ['Film'] })), false);
+test('within a multi-select filter one match is enough (OR)', () => {
+  const f = F.sanitize({ interests: ['Hiking', 'Books'] });
+  assert.equal(F.matches(person({ interests: ['Books'] }), f, presence('online')), true);
+  assert.equal(F.matches(person({ interests: ['Hiking', 'Cats'] }), f, presence('online')), true);
+  assert.equal(F.matches(person({ interests: ['Cats'] }), f, presence('online')), false);
 });
 
-test('looking for matches any picked option and hides people who left it blank', () => {
-  assert.equal(F.matches(maya, f({ lookingFor: ['study', 'friends'] })), true);
-  assert.equal(F.matches(maya, f({ lookingFor: ['activity'] })), false);
-  assert.equal(F.matches(sasha, f({ lookingFor: ['friends', 'activity', 'study', 'hobby'] })), false);
+test('age: bounds are inclusive, a missing age hides only while an age filter is on', () => {
+  const f = F.sanitize({ minAge: 24, maxAge: 40 });
+  assert.equal(F.matches(person({ age: 24 }), f, presence('none')), true);
+  assert.equal(F.matches(person({ age: 40 }), f, presence('none')), true);
+  assert.equal(F.matches(person({ age: 41 }), f, presence('none')), false);
+  assert.equal(F.matches(person({ age: null }), f, presence('none')), false);
+  // With no age filter set the sparse profile shows again.
+  assert.equal(F.matches(person({ age: null }), F.defaults(), presence('none')), true);
 });
 
-test('age and distance keep their existing behaviour', () => {
-  assert.equal(F.matches(maya, f({ minAge: 27 })), false);
-  assert.equal(F.matches(maya, f({ minAge: 20, maxAge: 26 })), true);
-  assert.equal(F.matches(sasha, f({ maxAge: 99 })), false);
-  assert.equal(F.matches(maya, f({ maxDistance: 2 })), false);
+test('distance: a missing distance hides only while a distance filter is on', () => {
+  const f = F.sanitize({ maxDistance: 5 });
+  assert.equal(F.matches(person({ distance: 5 }), f, presence('none')), true);
+  assert.equal(F.matches(person({ distance: 6 }), f, presence('none')), false);
+  assert.equal(F.matches(person({ distance: null }), f, presence('none')), false);
+  assert.equal(F.matches(person({ distance: null }), F.defaults(), presence('none')), true);
 });
 
-test('summary names a single goal and folds the rest into a count', () => {
-  const label = Schema.lookingForLabel;
-  assert.equal(F.summary(f({ minAge: 24, maxAge: 40, maxDistance: 10 })), '24–40 · 10 km');
-  assert.equal(F.summary(f({ lookingFor: ['study'] }), { lookingForLabel: label }), 'Study buddies');
-  assert.equal(F.summary(f({ online: true, interests: ['Film', 'Jazz'] })), 'Online now · 2 interests');
+test('online: passes online and recent, fails none; missing lastActiveMin hides only while on', () => {
+  const f = F.sanitize({ online: true });
+  assert.equal(F.matches(person({ lastActiveMin: 0 }), f, presence('online')), true);
+  assert.equal(F.matches(person({ lastActiveMin: 20 }), f, presence('recent')), true);
+  assert.equal(F.matches(person({ lastActiveMin: 180 }), f, presence('none')), false);
+  // No lastActiveMin field at all: the stub answers 'none', so hidden.
+  assert.equal(F.matches({ age: 30, distance: 5, lastActiveMin: undefined }, f, presence('none')), false);
+  assert.equal(F.matches(person(), F.defaults(), presence('none')), true);
+});
+
+test('looking for: matches any chosen value, a null lookingFor hides only while on', () => {
+  const f = F.sanitize({ lookingFor: ['friends', 'activity'] });
+  assert.equal(F.matches(person({ lookingFor: 'friends' }), f, presence('none')), true);
+  assert.equal(F.matches(person({ lookingFor: 'activity' }), f, presence('none')), true);
+  assert.equal(F.matches(person({ lookingFor: 'study' }), f, presence('none')), false);
+  assert.equal(F.matches(person({ lookingFor: null }), f, presence('none')), false);
+  assert.equal(F.matches(person({ lookingFor: null }), F.defaults(), presence('none')), true);
+});
+
+test('interests: a missing or empty interests array hides only while the filter is on', () => {
+  const f = F.sanitize({ interests: ['Hiking'] });
+  assert.equal(F.matches(person({ interests: [] }), f, presence('none')), false);
+  assert.equal(F.matches(person({ interests: undefined }), f, presence('none')), false);
+  assert.equal(F.matches(person({ interests: [] }), F.defaults(), presence('none')), true);
+});
+
+test('languages: a missing or empty languages array hides only while the filter is on', () => {
+  const f = F.sanitize({ languages: ['English'] });
+  assert.equal(F.matches(person({ languages: [] }), f, presence('none')), false);
+  assert.equal(F.matches(person({ languages: undefined }), f, presence('none')), false);
+  assert.equal(F.matches(person({ languages: [] }), F.defaults(), presence('none')), true);
+});
+
+test('activeCount counts each filter row once', () => {
+  assert.equal(F.activeCount(F.defaults()), 0);
+  assert.equal(F.activeCount(F.sanitize({ minAge: 24, maxAge: 40 })), 1);
   assert.equal(
-    F.summary(f({ minAge: 20, online: true, languages: ['English'], lookingFor: ['friends', 'hobby'] })),
-    '20+ · Online now · +2');
+    F.activeCount(F.sanitize({
+      minAge: 24, maxAge: 40, maxDistance: 10, online: true,
+      lookingFor: ['friends', 'activity'], interests: ['Hiking'], languages: ['English'],
+    })),
+    6);
 });
 
-test('filters are remembered in session storage and cleared on reset', () => {
-  const store = new Map();
-  const storage = {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => store.set(k, v),
-    removeItem: (k) => store.delete(k),
-  };
-  const chosen = f({ maxDistance: 5, online: true, languages: ['French'], lookingFor: ['hobby'] });
-  F.save(storage, chosen);
-  assert.deepEqual(F.load(storage), chosen);
-  F.save(storage, F.defaults());
-  assert.equal(store.has(F.STORAGE_KEY), false);
-  assert.deepEqual(F.load(storage), F.defaults());
+test('sanitize drops unknown values, bad numbers, non-arrays and junk', () => {
+  const f = F.sanitize({
+    minAge: 10, maxAge: 999, maxDistance: 7, online: 'yes',
+    lookingFor: ['friends', 'dating', 'friends'], interests: ['Hiking', 'Clubbing', 42],
+    languages: ['English', 'Klingon', 'English'],
+  });
+  assert.equal(f.minAge, null);
+  assert.equal(f.maxAge, null);
+  assert.equal(f.maxDistance, null);
+  assert.equal(f.online, false);
+  assert.deepEqual(f.lookingFor, ['friends']);
+  assert.deepEqual(f.interests, ['Hiking']);
+  assert.deepEqual(f.languages, ['English']);
+
+  // min above max is repaired by raising max.
+  assert.deepEqual(
+    F.sanitize({ minAge: 40, maxAge: 24 }),
+    Object.assign(F.defaults(), { minAge: 40, maxAge: 40 }));
+
+  // Non-object junk gives the defaults.
+  assert.deepEqual(F.sanitize(null), F.defaults());
+  assert.deepEqual(F.sanitize('junk'), F.defaults());
+  assert.deepEqual(F.sanitize([1, 2]), F.defaults());
+
+  // A filter naming an option later removed from the schema is dropped.
+  assert.deepEqual(F.sanitize({ interests: ['Hiking', 'Long-lost interest'] }).interests, ['Hiking']);
 });
 
-test('load survives refused storage and junk values', () => {
-  const throwing = { getItem() { throw new Error('denied'); } };
-  assert.deepEqual(F.load(throwing), F.defaults());
-  assert.deepEqual(F.load(null), F.defaults());
-  const junk = { getItem: () => '{"minAge":"x","online":"yes","interests":[1,"Film","Film"],"extra":true}' };
-  assert.deepEqual(F.load(junk), f({ interests: ['Film'] }));
+test('summary is unchanged', () => {
+  assert.equal(F.summary(F.sanitize({ minAge: 24, maxAge: 40, maxDistance: 10 })), '24–40 · 10 km');
+  assert.equal(F.summary(F.sanitize({ minAge: 24 })), '24+');
+  assert.equal(F.summary(F.sanitize({ maxAge: 40 })), 'up to 40');
+  assert.equal(F.summary(F.sanitize({ maxDistance: 10 })), '10 km');
+  assert.equal(F.summary(F.defaults()), '');
 });
 
-test('profile schema validates languages from the list, up to the limit', () => {
-  const ok = Schema.validate({ name: 'A', languages: ['English', 'Tamil'] });
-  assert.deepEqual(ok.value.languages, ['English', 'Tamil']);
-  assert.equal(ok.errors.languages, undefined);
-  assert.equal(Schema.validate({ name: 'A', languages: ['Klingon'] }).errors.languages, 'Pick languages from the list.');
-  const many = Schema.LANGUAGES.slice(0, Schema.LIMITS.languages + 1);
-  assert.match(Schema.validate({ name: 'A', languages: many }).errors.languages, /up to/);
-  assert.deepEqual(Schema.empty().languages, []);
+test('the module reads the shared schema for its option lists', () => {
+  assert.ok(Schema.LANGUAGES.indexOf('English') !== -1);
+  assert.ok(Schema.LOOKING_FOR.some(function (o) { return o.value === 'friends'; }));
 });

@@ -353,7 +353,7 @@
     }
 
     // -------------------------------------------------------------- languages
-    const languagesSection = section('Languages', 'The languages you are happy to chat in.');
+    const languagesSection = section('Languages', 'Optional. Up to ' + L.languages + ', so people can see why you match a language filter.');
     languagesSection.dataset.testid = 'edit-languages';
     const languagesMeta = el('p', 'text-xs text-zinc-500');
     const languagesBody = el('div', 'flex flex-wrap gap-2');

@@ -1,135 +1,133 @@
-// Omichat discovery filters: the filter shape, matching, the pill summary
-// and session storage. Loaded by the page (window.OmichatFilters) and
-// required by tests/discovery-filters.test.js, so the deck and the tests
-// share one definition of "matches".
-//
-// A filter that is off is null (or an empty list). A profile missing the
-// field a filter is set on is hidden rather than guessed about: with every
-// filter off, everyone shows.
+// Omichat discovery filters: the filter state, its matching rules and its
+// labels. Pure logic, no DOM: loaded by the page (window.OmichatFilters) and
+// required by the unit tests. profile-schema.js stays the single source of
+// the option lists (Looking for, Interests, Languages).
 (function (root, factory) {
-  if (typeof module === 'object' && module.exports) module.exports = factory();
-  else root.OmichatFilters = factory();
-})(typeof self !== 'undefined' ? self : this, function () {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./profile-schema.js'));
+  } else {
+    root.OmichatFilters = factory(root.OmichatSchema);
+  }
+})(typeof self !== 'undefined' ? self : this, function (Schema) {
   'use strict';
 
-  const STORAGE_KEY = 'omichat.discoveryFilters';
-  const LISTS = ['interests', 'languages', 'lookingFor'];
+  const AGE_MIN = 18;
+  const AGE_MAX = 80;
+  const DISTANCES_KM = [1, 2, 5, 10, 25, 50, 100];
 
+  // null, false or an empty array means the filter is off.
   function defaults() {
     return {
-      minAge: null, maxAge: null, maxDistance: null,
-      online: false, interests: [], languages: [], lookingFor: [],
+      minAge: null,
+      maxAge: null,
+      maxDistance: null,
+      online: false,
+      lookingFor: [],
+      interests: [],
+      languages: [],
     };
   }
 
-  function num(v) {
-    return typeof v === 'number' && isFinite(v) ? v : null;
+  function isAge(n) {
+    return Number.isInteger(n) && n >= AGE_MIN && n <= AGE_MAX;
   }
 
-  // Coerces anything (a stored value, a partial object) into a valid filter
-  // set, dropping unknown keys and list entries that are not strings.
-  function normalize(input) {
+  // Normalises a saved or incoming filter object: unknown values are dropped
+  // (so a filter that names an option later removed from the schema cannot
+  // hide everyone), duplicates are removed and out-of-range numbers fall
+  // back to the default. A minimum above the maximum raises the maximum,
+  // the same rule the sheet applies live.
+  function sanitize(raw) {
     const f = defaults();
-    if (!input || typeof input !== 'object') return f;
-    f.minAge = num(input.minAge);
-    f.maxAge = num(input.maxAge);
-    f.maxDistance = num(input.maxDistance);
-    f.online = input.online === true;
-    LISTS.forEach(function (k) {
-      const list = Array.isArray(input[k]) ? input[k] : [];
-      list.forEach(function (v) {
-        if (typeof v === 'string' && f[k].indexOf(v) === -1) f[k].push(v);
-      });
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return f;
+
+    if (isAge(raw.minAge)) f.minAge = raw.minAge;
+    if (isAge(raw.maxAge)) f.maxAge = raw.maxAge;
+    if (DISTANCES_KM.indexOf(raw.maxDistance) !== -1) f.maxDistance = raw.maxDistance;
+    if (raw.online === true) f.online = true;
+
+    const lists = [
+      ['lookingFor', Schema.LOOKING_FOR.map(function (o) { return o.value; })],
+      ['interests', Schema.INTERESTS],
+      ['languages', Schema.LANGUAGES],
+    ];
+    lists.forEach(function (pair) {
+      const key = pair[0];
+      const valid = pair[1];
+      if (!Array.isArray(raw[key])) return;
+      const kept = raw[key].filter(function (v) { return valid.indexOf(v) !== -1; });
+      f[key] = kept.filter(function (v, i) { return kept.indexOf(v) === i; });
     });
+
+    if (f.minAge != null && f.maxAge != null && f.minAge > f.maxAge) {
+      f.maxAge = f.minAge;
+    }
     return f;
   }
 
-  function isActive(f) {
-    return f.minAge != null || f.maxAge != null || f.maxDistance != null ||
-      f.online || f.interests.length > 0 || f.languages.length > 0 ||
-      f.lookingFor.length > 0;
-  }
-
-  function overlaps(have, want) {
-    if (!Array.isArray(have)) return false;
-    return want.some(function (w) { return have.indexOf(w) !== -1; });
-  }
-
-  // opts.isOnline(profile) answers the online filter; when it is missing
-  // (the viewer hides their own status, so sees no one else's) the online
-  // filter is ignored. Lists match on any overlap: picking Hiking and Film
-  // shows people with either.
-  function matches(p, f, opts) {
-    opts = opts || {};
-    if (p.age == null) {
-      if (f.minAge != null || f.maxAge != null) return false;
-    } else {
+  // A profile lacking the field a filter is set on is hidden rather than
+  // guessed about: the deck never invents a value for missing data. Within a
+  // multi-select filter one match is enough; across filters every turned-on
+  // rule must pass.
+  function matches(p, f, presence) {
+    if (f.minAge != null || f.maxAge != null) {
+      if (p.age == null) return false;
       if (f.minAge != null && p.age < f.minAge) return false;
       if (f.maxAge != null && p.age > f.maxAge) return false;
     }
     if (f.maxDistance != null && (p.distance == null || p.distance > f.maxDistance)) {
       return false;
     }
-    if (f.online && opts.isOnline && !opts.isOnline(p)) return false;
-    if (f.interests.length && !overlaps(p.interests, f.interests)) return false;
-    if (f.languages.length && !overlaps(p.languages, f.languages)) return false;
-    if (f.lookingFor.length && f.lookingFor.indexOf(p.lookingFor) === -1) return false;
+    if (f.online === true) {
+      const status = presence ? presence(p).status : 'none';
+      if (status !== 'online' && status !== 'recent') return false;
+    }
+    if (f.lookingFor.length && (p.lookingFor == null || f.lookingFor.indexOf(p.lookingFor) === -1)) {
+      return false;
+    }
+    if (f.interests.length) {
+      const shared = Array.isArray(p.interests) &&
+        p.interests.some(function (i) { return f.interests.indexOf(i) !== -1; });
+      if (!shared) return false;
+    }
+    if (f.languages.length) {
+      const shared = Array.isArray(p.languages) &&
+        p.languages.some(function (l) { return f.languages.indexOf(l) !== -1; });
+      if (!shared) return false;
+    }
     return true;
   }
 
-  function plural(n, one, many) {
-    return n + ' ' + (n === 1 ? one : many);
+  // Each turned-on filter counts once, however many values it holds.
+  function activeCount(f) {
+    let n = 0;
+    if (f.minAge != null || f.maxAge != null) n++;
+    if (f.maxDistance != null) n++;
+    if (f.online === true) n++;
+    if (f.lookingFor.length) n++;
+    if (f.interests.length) n++;
+    if (f.languages.length) n++;
+    return n;
   }
 
-  // Short label for the deck's filter pill, e.g. "24–40 · 10 km · +2".
-  // opts.lookingForLabel(value) names a single "Looking for" choice.
-  function summary(f, opts) {
-    opts = opts || {};
+  // Short label for the deck's filter pill, e.g. "24–40 · 10 km".
+  function summary(f) {
     const parts = [];
     if (f.minAge != null && f.maxAge != null) parts.push(f.minAge + '–' + f.maxAge);
     else if (f.minAge != null) parts.push(f.minAge + '+');
     else if (f.maxAge != null) parts.push('up to ' + f.maxAge);
     if (f.maxDistance != null) parts.push(f.maxDistance + ' km');
-    if (f.online) parts.push('Online now');
-    if (f.lookingFor.length === 1 && opts.lookingForLabel) {
-      parts.push(opts.lookingForLabel(f.lookingFor[0]) || plural(1, 'goal', 'goals'));
-    } else if (f.lookingFor.length) {
-      parts.push(plural(f.lookingFor.length, 'goal', 'goals'));
-    }
-    if (f.interests.length) parts.push(plural(f.interests.length, 'interest', 'interests'));
-    if (f.languages.length) parts.push(plural(f.languages.length, 'language', 'languages'));
-    if (parts.length <= 2) return parts.join(' · ');
-    return parts.slice(0, 2).join(' · ') + ' · +' + (parts.length - 2);
-  }
-
-  // Session memory: the filters survive tab switches and reloads within the
-  // browsing session, and start fresh in a new one. Storage can be refused
-  // in a third-party frame; then they live in memory only.
-  function load(storage) {
-    try {
-      const raw = storage && storage.getItem(STORAGE_KEY);
-      return normalize(raw ? JSON.parse(raw) : null);
-    } catch (e) {
-      return defaults();
-    }
-  }
-
-  function save(storage, f) {
-    try {
-      if (!storage) return;
-      if (isActive(f)) storage.setItem(STORAGE_KEY, JSON.stringify(f));
-      else storage.removeItem(STORAGE_KEY);
-    } catch (e) { /* memory only */ }
+    return parts.join(' · ');
   }
 
   return {
-    STORAGE_KEY: STORAGE_KEY,
+    AGE_MIN: AGE_MIN,
+    AGE_MAX: AGE_MAX,
+    DISTANCES_KM: DISTANCES_KM,
     defaults: defaults,
-    normalize: normalize,
-    isActive: isActive,
+    sanitize: sanitize,
     matches: matches,
+    activeCount: activeCount,
     summary: summary,
-    load: load,
-    save: save,
   };
 });
