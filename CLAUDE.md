@@ -140,11 +140,22 @@ session state. Persisted, per-account features: verification
   `Milo`) exercise this and the full profile's empty states.
 - Languages are a profile field (`profile-schema.js` `LANGUAGES`, up to 6),
   edited on Edit Profile and listed in the full profile's Details.
-- Safety and Trust (Phase 1 of that roadmap) lives behind one service layer,
-  `public/js/safety.js` (reports, blocks, selfie verification, privacy, age
-  gate), backed by localStorage and mock latency; UI is `safety-ui.js`. Swap
-  it with `OmichatSafety.configure(...)`. Blocks are permanent (no unblock).
-  The age gate stores only the pass/blocked result, never the date of birth.
-  Tests: `npm test`.
+- Safety and Trust lives behind one service layer, `public/js/safety.js`
+  (reports, blocks, selfie verification, privacy, age gate); UI is
+  `safety-ui.js`. Reports, blocks and privacy settings are saved per account
+  (`createServerServices`, routes under `/api/safety`, `/api/blocks`,
+  `/api/reports`, `/api/privacy` in `server.js`), in the `staging:private`
+  tables `blocks`, `reports` and `privacy_settings`. Without a database the
+  page keeps the localStorage mock (`createMockServices`); anything an older
+  version stored on the device is copied to the account once. Selfie
+  verification and the age gate are still device-only. The privacy, report
+  and block rules (`validatePrivacy`, `canMessage`, `canSeeProfile`,
+  `presenceVisible`, `validateReport`) are shared by the page and the server.
+  Block and report targets are keys: `mock:<id>` for sample profiles,
+  `user:<platform id>` for real accounts. Online status is reciprocal: with
+  "Show my online status" off you also see nobody else's. Blocks are
+  permanent (no unblock). Reports are reviewed by project members (platform
+  `GET /members`) in the Reports to review card. The age gate stores only the
+  pass/blocked result, never the date of birth. Tests: `npm test`.
 - Keep the frontend component-based (`public/js/components.js`,
   `profile-view.js`, `profile-edit.js`); no framework, no new dependencies.
