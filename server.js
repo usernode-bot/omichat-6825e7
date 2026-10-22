@@ -570,7 +570,7 @@ app.get('/api/profile', async (req, res) => {
 
 app.put('/api/profile', async (req, res) => {
   if (!dbReady) return res.status(503).json({ error: 'Profiles are not available here' });
-  const { value, errors } = ProfileSchema.validate(req.body && req.body.profile);
+  const { value, errors } = ProfileSchema.validate(req.body && req.body.profile, { fallbackName: req.user.username });
   if (Object.keys(errors).length) {
     return res.status(400).json({ error: 'Check the highlighted fields', fields: errors });
   }
@@ -581,7 +581,7 @@ app.put('/api/profile', async (req, res) => {
        ON CONFLICT (user_id) DO UPDATE SET
          username = EXCLUDED.username, data = EXCLUDED.data, updated_at = now()
        RETURNING data, updated_at`,
-      [req.user.id, req.user.username, JSON.stringify(value)]);
+      [req.user.id, req.user.username || '', JSON.stringify(value)]);
     res.json({ username: req.user.username, profile: rows[0].data, updatedAt: rows[0].updated_at });
   } catch (err) {
     console.error('profile save failed', err.message);

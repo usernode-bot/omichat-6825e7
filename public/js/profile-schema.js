@@ -79,15 +79,18 @@
 
   // Validates a submitted profile. Returns { value, errors }: `value` is the
   // normalized profile to store, `errors` maps a field name to a message.
-  // Unknown keys are dropped; empty optional fields become null.
-  function validate(input) {
+  // Unknown keys are dropped; empty fields become null or [] and never block
+  // a save: a blank name falls back to opts.fallbackName (the Homeroom
+  // username) and a prompt with no answer is left out. Only real mistakes
+  // still produce errors.
+  function validate(input, opts) {
     input = input && typeof input === 'object' ? input : {};
+    opts = opts || {};
     const errors = {};
     const v = {};
 
-    v.name = text(input.name);
-    if (!v.name) errors.name = 'Add your name.';
-    else if (v.name.length > LIMITS.name) errors.name = 'Keep your name to ' + LIMITS.name + ' characters.';
+    v.name = text(input.name) || text(opts.fallbackName).slice(0, LIMITS.name) || null;
+    if (v.name && v.name.length > LIMITS.name) errors.name = 'Keep your name to ' + LIMITS.name + ' characters.';
 
     const ageRaw = input.age;
     if (ageRaw === '' || ageRaw == null) {
@@ -133,12 +136,12 @@
     prompts.slice(0, LIMITS.prompts).forEach(function (p, idx) {
       const q = p && p.prompt;
       const a = text(p && p.answer);
+      // A prompt left unanswered is not saved, and does not block the save.
+      if (!a) return;
       if (PROMPTS.indexOf(q) === -1) {
         errors['prompt' + idx] = 'Choose a prompt from the list.';
       } else if (v.prompts.some(function (x) { return x.prompt === q; })) {
         errors['prompt' + idx] = 'Each prompt can be used once.';
-      } else if (!a) {
-        errors['prompt' + idx] = 'Write an answer, or remove this prompt.';
       } else if (a.length > LIMITS.answer) {
         errors['prompt' + idx] = 'Keep answers to ' + LIMITS.answer + ' characters.';
       }

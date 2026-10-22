@@ -601,7 +601,7 @@
     // ----------------------------------------------------------- save, cancel
     async function onSave() {
       if (saving || uploading > 0) return;
-      const result = Schema.validate(draft);
+      const result = Schema.validate(draft, { fallbackName: deps.me.username });
       errors = result.errors;
       if (Object.keys(errors).length) { showAllErrors(); return; }
       saving = true;
@@ -627,7 +627,8 @@
           .filter(function (id) { return id && !kept.has(id); });
         deleteFiles(dropped);
         saving = false;
-        deps.toast('Profile saved');
+        const gaps = Schema.completeness(data.profile).hints.length > 0;
+        deps.toast(gaps ? 'Profile saved. You can fill in the rest any time.' : 'Profile saved');
         deps.onDone({ username: data.username, profile: data.profile });
       } catch (err) {
         saving = false;
