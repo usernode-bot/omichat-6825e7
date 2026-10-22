@@ -1,5 +1,5 @@
-// Omichat profile schema: the predefined interest and prompt lists, the
-// "Looking for" options, field limits, validation and the completeness
+// Omichat profile schema: the predefined interest, language and prompt
+// lists, the "Looking for" options, field limits, validation and the completeness
 // score. One file, loaded by the page (window.OmichatSchema) AND required by
 // server.js, so the client and the server always validate the same way.
 (function (root, factory) {
@@ -16,6 +16,14 @@
     'Plants', 'Podcasts', 'Running', 'Street food', 'Swimming', 'Synths',
     'Theatre', 'Thrift finds', 'Travel', 'Video games', 'Vinyl',
     'Volunteering', 'Writing', 'Yoga',
+  ];
+
+  const LANGUAGES = [
+    'Arabic', 'Bengali', 'Cantonese', 'Dutch', 'English', 'French', 'German',
+    'Greek', 'Hebrew', 'Hindi', 'Indonesian', 'Italian', 'Japanese', 'Korean',
+    'Mandarin', 'Persian', 'Polish', 'Portuguese', 'Russian', 'Sign language',
+    'Spanish', 'Swahili', 'Tagalog', 'Tamil', 'Thai', 'Turkish', 'Ukrainian',
+    'Urdu', 'Vietnamese',
   ];
 
   const PROMPTS = [
@@ -258,6 +266,7 @@
 
   return {
     INTERESTS: INTERESTS,
+    LANGUAGES: LANGUAGES,
     PROMPTS: PROMPTS,
     LOOKING_FOR: LOOKING_FOR,
     LANGUAGES: LANGUAGES,

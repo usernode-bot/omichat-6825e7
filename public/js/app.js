@@ -537,14 +537,23 @@
   // ------------------------------------------------------------ filters sheet
 
   // The discovery filters sheet. Every control live-applies: the deck behind
-  // it re-renders as each value changes. Presented with the platform's
-  // bottom sheet when the native kit is available, else a plain overlay so
-  // the filters still work outside the shell.
+  // it re-renders as each value changes, and the choice is remembered for
+  // the session. Presented with the platform's bottom sheet when the native
+  // kit is available, else a plain overlay so the filters still work outside
+  // the shell.
   function openFilters() {
     if (filtersOpen) return;
     filtersOpen = true;
+    // Header and Done stay put; the filters between them scroll, so the
+    // sheet never grows past the screen.
     const content = document.createElement('div');
-    content.className = 'px-5 pt-2 pb-7 flex flex-col gap-5';
+    content.dataset.testid = 'filters-sheet';
+    content.className = 'flex flex-col';
+    content.style.maxHeight = '80dvh';
+    const body = document.createElement('div');
+    body.className = 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pt-4 pb-4 flex flex-col gap-5';
+    const foot = document.createElement('div');
+    foot.className = 'shrink-0 flex flex-col px-5 pt-3 pb-7 border-t border-zinc-800';
 
     const head = document.createElement('div');
     head.className = 'flex items-start justify-between';
@@ -558,9 +567,10 @@
     titleWrap.append(title, countLine);
     const reset = document.createElement('button');
     reset.type = 'button';
+    reset.dataset.testid = 'filters-reset';
     reset.textContent = 'Reset';
     reset.className =
-      'rounded-full px-2 py-1 text-sm font-medium text-sky-300 hover:text-sky-200 ' +
+      'rounded-full px-2 py-1 text-sm font-medium text-sky-300 hover:text-sky-200 disabled:text-zinc-600 ' +
       'active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400';
     head.append(titleWrap, reset);
     content.append(head);
@@ -576,26 +586,12 @@
     const ageRow = document.createElement('div');
     ageRow.className = 'grid grid-cols-2 gap-3';
     ageRow.append(minSel.wrap, maxSel.wrap);
-
-    const ageWrap = document.createElement('div');
-    ageWrap.className = 'flex flex-col gap-2';
-    const ageLabel = document.createElement('p');
-    ageLabel.className = 'text-sm font-medium text-zinc-300';
-    ageLabel.textContent = 'Age range';
-    ageWrap.append(ageLabel, ageRow,
-      hint('Profiles without an age show only when no age filter is set.'));
-    content.append(ageWrap);
+    body.append(filterSection('Age range',
+      'Profiles without an age show only when no age filter is set.', ageRow));
 
     const distSel = selectControl('Maximum distance', DISTANCE_OPTIONS, state.filters.maxDistance);
-    const distWrap = document.createElement('div');
-    distWrap.className = 'flex flex-col gap-2';
-    const distLabel = document.createElement('p');
-    distLabel.className = 'text-sm font-medium text-zinc-300';
-    distLabel.textContent = 'Distance';
-    distWrap.append(distLabel,
-      hint('Profiles without a distance show only when no distance filter is set.'));
-    distWrap.append(distSel.wrap);
-    content.append(distWrap);
+    body.append(filterSection('Distance',
+      'Profiles without a distance show only when no distance filter is set.', distSel.wrap));
 
     // Online now: the platform kit's switch, laid out like the rows in
     // Privacy and safety. Without the kit it shows as a plain checkbox.
@@ -668,7 +664,56 @@
 
     const sheet = presentSheet(content, function () { filtersOpen = false; });
 
-    function applyChanged() {
+    function changed() {
+      saveFilters();
+      reset.disabled = !filtersActive();
+      if (state.tab === 'discover' && !state.view) render();
+    }
+
+    function toggleIn(list, value) {
+      const i = list.indexOf(value);
+      if (i === -1) list.push(value); else list.splice(i, 1);
+    }
+
+    function renderChips() {
+      onlineBody.innerHTML = '';
+      [{ value: false, label: 'Anyone' }, { value: true, label: 'Online now' }].forEach(function (o) {
+        const on = state.filters.online === o.value;
+        onlineBody.append(chip(o.label, on, !onlineOk, 'radio', function () {
+          state.filters.online = o.value;
+          renderChips();
+          changed();
+        }));
+      });
+      lookingBody.innerHTML = '';
+      Schema.LOOKING_FOR.forEach(function (o) {
+        lookingBody.append(chip(o.label, state.filters.lookingFor.indexOf(o.value) !== -1, false, null, function () {
+          toggleIn(state.filters.lookingFor, o.value);
+          renderChips();
+          changed();
+        }));
+      });
+      interestsBody.innerHTML = '';
+      Schema.INTERESTS.forEach(function (name) {
+        interestsBody.append(chip(name, state.filters.interests.indexOf(name) !== -1, false, null, function () {
+          toggleIn(state.filters.interests, name);
+          renderChips();
+          changed();
+        }));
+      });
+      languagesBody.innerHTML = '';
+      Schema.LANGUAGES.forEach(function (name) {
+        languagesBody.append(chip(name, state.filters.languages.indexOf(name) !== -1, false, null, function () {
+          toggleIn(state.filters.languages, name);
+          renderChips();
+          changed();
+        }));
+      });
+    }
+    renderChips();
+    reset.disabled = !filtersActive();
+
+    function applySelects() {
       state.filters.minAge = minSel.value();
       state.filters.maxAge = maxSel.value();
       state.filters.maxDistance = distSel.value();

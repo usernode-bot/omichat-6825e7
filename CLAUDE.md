@@ -138,6 +138,8 @@ session state. Persisted, per-account features: verification
   filter is set on shows only while that filter is unset; the deck never
   guesses a value for missing data. Two sparse mock profiles (`Sasha`,
   `Milo`) exercise this and the full profile's empty states.
+- Languages are a profile field (`profile-schema.js` `LANGUAGES`, up to 6),
+  edited on Edit Profile and listed in the full profile's Details.
 - Safety and Trust lives behind one service layer, `public/js/safety.js`
   (reports, blocks, selfie verification, privacy, age gate); UI is
   `safety-ui.js`. Reports, blocks and privacy settings are saved per account
