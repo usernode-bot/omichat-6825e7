@@ -206,6 +206,53 @@
     return a.filter(function (i) { return b.indexOf(i) !== -1; });
   }
 
+  // ---------------------------------------------------------------- photos
+  // Phones label photos inconsistently: Android reports image/jpg,
+  // image/pjpeg or image/x-png, and sometimes no type at all. These two
+  // helpers decide whether a picked file is worth trying to open, and what
+  // name and type it gets when it goes up unchanged (platform storage checks
+  // that the extension matches the bytes).
+  const PHOTO_TYPES = {
+    'image/jpeg': { type: 'image/jpeg', ext: 'jpg' },
+    'image/jpg': { type: 'image/jpeg', ext: 'jpg' },
+    'image/pjpeg': { type: 'image/jpeg', ext: 'jpg' },
+    'image/png': { type: 'image/png', ext: 'png' },
+    'image/x-png': { type: 'image/png', ext: 'png' },
+    'image/webp': { type: 'image/webp', ext: 'webp' },
+    'image/gif': { type: 'image/gif', ext: 'gif' },
+  };
+  const PHOTO_EXTENSIONS = {
+    jpg: PHOTO_TYPES['image/jpeg'],
+    jpeg: PHOTO_TYPES['image/jpeg'],
+    jfif: PHOTO_TYPES['image/jpeg'],
+    png: PHOTO_TYPES['image/png'],
+    webp: PHOTO_TYPES['image/webp'],
+    gif: PHOTO_TYPES['image/gif'],
+  };
+  // Photo types the phone may be able to open but that we cannot name for
+  // storage; only the file name tells us they are worth a try.
+  const OTHER_PHOTO_EXTENSIONS = ['heic', 'heif', 'avif', 'bmp'];
+
+  function fileExtension(name) {
+    const m = /\.([a-z0-9]+)$/i.exec(String(name || ''));
+    return m ? m[1].toLowerCase() : '';
+  }
+
+  function photoUploadName(type, name) {
+    const t = String(type || '').toLowerCase().trim();
+    if (PHOTO_TYPES[t]) return PHOTO_TYPES[t];
+    const byExtension = PHOTO_EXTENSIONS[fileExtension(name)];
+    return byExtension || null;
+  }
+
+  function isPickableImage(type, name) {
+    const t = String(type || '').toLowerCase().trim();
+    if (t.indexOf('image/') === 0) return true;
+    const ext = fileExtension(name);
+    return !!ext &&
+      (!!PHOTO_EXTENSIONS[ext] || OTHER_PHOTO_EXTENSIONS.indexOf(ext) !== -1);
+  }
+
   return {
     INTERESTS: INTERESTS,
     PROMPTS: PROMPTS,
@@ -216,6 +263,8 @@
     validate: validate,
     completeness: completeness,
     sharedInterests: sharedInterests,
+    photoUploadName: photoUploadName,
+    isPickableImage: isPickableImage,
     empty: empty,
   };
 });
