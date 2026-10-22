@@ -1252,25 +1252,42 @@
     return row;
   }
 
+  // Decode through an <img>, for phones whose WebView cannot createImageBitmap.
+  function loadImageElement(file) {
+    return new Promise(function (resolve, reject) {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = function () { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Could not read the image')); };
+      img.src = url;
+    });
+  }
+
   async function downscaleImage(file, maxSide) {
     const MAX = maxSide || 1024;
-    let bitmap;
+    let source;
     try {
-      bitmap = await createImageBitmap(file);
+      source = await createImageBitmap(file);
     } catch (err) {
-      return file; // undecodable here: let platform storage sniffing decide
+      try {
+        source = await loadImageElement(file);
+      } catch (err2) {
+        return file; // undecodable here: let platform storage sniffing decide
+      }
     }
-    const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
-    const w = Math.max(1, Math.round(bitmap.width * scale));
-    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const width = source.width || source.naturalWidth;
+    const height = source.height || source.naturalHeight;
+    const scale = Math.min(1, MAX / Math.max(width, height));
+    const w = Math.max(1, Math.round(width * scale));
+    const h = Math.max(1, Math.round(height * scale));
     const canvas = document.createElement('canvas');
     canvas.width = w;
     canvas.height = h;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    canvas.getContext('2d').drawImage(source, 0, 0, w, h);
     const blob = await new Promise(function (resolve) {
       canvas.toBlob(resolve, 'image/jpeg', 0.85);
     });
-    if (bitmap.close) bitmap.close();
+    if (source.close) source.close();
     return blob || file;
   }
 

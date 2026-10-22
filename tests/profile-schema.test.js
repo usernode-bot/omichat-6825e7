@@ -48,6 +48,38 @@ test('the LANGUAGES list is the fixed 24-language list with no duplicates', () =
   assert.equal(S.LANGUAGES.length, 24);
   assert.equal(new Set(S.LANGUAGES).size, 24);
 });
+// ------------------------------------------------------------- photos
+// Phones label photos inconsistently; these helpers decide what a picked
+// file is and what name storage should see.
+test('photoUploadName normalises variant photo types', () => {
+  assert.deepEqual(S.photoUploadName('image/jpg', 'a.jpg'), { type: 'image/jpeg', ext: 'jpg' });
+  assert.deepEqual(S.photoUploadName('image/pjpeg', 'a.jpg'), { type: 'image/jpeg', ext: 'jpg' });
+  assert.deepEqual(S.photoUploadName('image/x-png', 'a.png'), { type: 'image/png', ext: 'png' });
+  assert.deepEqual(S.photoUploadName('image/jpeg', 'a'), { type: 'image/jpeg', ext: 'jpg' });
+  assert.deepEqual(S.photoUploadName('image/png', 'a'), { type: 'image/png', ext: 'png' });
+  assert.deepEqual(S.photoUploadName('image/webp', 'a'), { type: 'image/webp', ext: 'webp' });
+  assert.deepEqual(S.photoUploadName('image/gif', 'a'), { type: 'image/gif', ext: 'gif' });
+});
+
+test('photoUploadName falls back to the file extension', () => {
+  assert.deepEqual(S.photoUploadName('', 'a.JPEG'), { type: 'image/jpeg', ext: 'jpg' });
+  assert.deepEqual(S.photoUploadName('', 'b.png'), { type: 'image/png', ext: 'png' });
+  assert.deepEqual(S.photoUploadName('application/octet-stream', 'c.webp'), { type: 'image/webp', ext: 'webp' });
+  assert.equal(S.photoUploadName('', 'c.heic'), null);
+  assert.equal(S.photoUploadName('application/octet-stream', 'd'), null);
+});
+
+test('isPickableImage accepts photos a phone may open and refuses the rest', () => {
+  assert.equal(S.isPickableImage('image/heic', 'x.heic'), true);
+  assert.equal(S.isPickableImage('image/jpg', 'x.jpg'), true);
+  assert.equal(S.isPickableImage('image/x-png', 'x'), true);
+  assert.equal(S.isPickableImage('', 'x.jpg'), true);
+  assert.equal(S.isPickableImage('', 'x.heic'), true);
+  assert.equal(S.isPickableImage('application/pdf', 'x.pdf'), false);
+  assert.equal(S.isPickableImage('', 'notes.txt'), false);
+  assert.equal(S.isPickableImage('', ''), false);
+});
+
 // A profile can be saved at any point: empty fields never block the save.
 test('an empty profile validates with no errors', () => {
   const r = S.validate({});

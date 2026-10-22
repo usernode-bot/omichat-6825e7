@@ -12,7 +12,6 @@
   const Schema = window.OmichatSchema;
   const L = Schema.LIMITS;
 
-  const ACCEPT = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
   const MAX_PICK_BYTES = 25 * 1024 * 1024; // before compression
   const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // platform storage limit
 
@@ -105,7 +104,7 @@
 
     const fileInput = document.createElement('input');
     fileInput.type = 'file';
-    fileInput.accept = ACCEPT.join(',');
+    fileInput.accept = 'image/*';
     fileInput.multiple = true;
     fileInput.className = 'hidden';
     fileInput.addEventListener('change', function () {
@@ -220,7 +219,7 @@
         files = files.slice(0, room);
       }
       const jobs = files.map(function (file) {
-        if (ACCEPT.indexOf(file.type) === -1) {
+        if (!Schema.isPickableImage(file.type, file.name)) {
           photoError = 'Choose a PNG, JPEG, WebP or GIF image.';
           return null;
         }
@@ -238,9 +237,15 @@
         try {
           const blob = await deps.downscale(job.file);
           if (blob.size > MAX_UPLOAD_BYTES) throw new Error('That image is still over 5 MB after compressing. Try another.');
-          const type = blob.type || job.file.type;
-          const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'image/gif': 'gif' }[type] || 'jpg';
-          const upload = new File([blob], 'profile-photo.' + ext, { type: type });
+          // A re-encoded photo is always JPEG. Otherwise the original comes
+          // back: name it after its real type so storage's extension check
+          // passes, or send it untouched when the type cannot be told.
+          const named = blob === job.file ? Schema.photoUploadName(job.file.type, job.file.name) : null;
+          const upload = blob !== job.file
+            ? new File([blob], 'profile-photo.jpg', { type: 'image/jpeg' })
+            : named
+              ? new File([job.file], 'profile-photo.' + named.ext, { type: named.type })
+              : job.file;
           const stored = await bridge().uploadFile(upload, { visibility: 'public' });
           sessionUploads.add(stored.id);
           const idx = draft.photos.indexOf(job.slot);
@@ -257,12 +262,17 @@
     }
 
     function uploadMessage(err) {
-      const code = err && (err.code || err.message);
-      if (code === 'user_quota_exceeded' || code === 'app_quota_exceeded' || code === 'staging_quota_exceeded') {
+      // Errors arrive as a code, or as a message like "invalid_image: ...".
+      const messageText = String((err && err.message) || '');
+      function has(code) {
+        return (err && err.code === code) || messageText.indexOf(code) !== -1;
+      }
+      if (has('user_quota_exceeded') || has('app_quota_exceeded') || has('staging_quota_exceeded')) {
         return 'Your photo storage is full. Delete a photo and try again.';
       }
-      if (code === 'invalid_image') return 'That file is not an image we can use. Try another.';
-      if (code === 'file_too_large') return 'That image is too large. Try a smaller one.';
+      if (has('storage_unavailable')) return 'Photo storage is not available right now. Try again later.';
+      if (has('invalid_image')) return 'That file is not an image we can use. Try another.';
+      if (has('file_too_large')) return 'That image is too large. Try a smaller one.';
       if (/shell|standalone/i.test(String(err && err.message))) {
         return 'Photo uploads are not available here. Open Omichat inside Homeroom to add photos.';
       }
