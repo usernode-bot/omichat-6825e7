@@ -48,3 +48,74 @@ test('the LANGUAGES list is the fixed 24-language list with no duplicates', () =
   assert.equal(S.LANGUAGES.length, 24);
   assert.equal(new Set(S.LANGUAGES).size, 24);
 });
+// A profile can be saved at any point: empty fields never block the save.
+test('an empty profile validates with no errors', () => {
+  const r = S.validate({});
+  assert.deepEqual(r.errors, {});
+  assert.deepEqual(r.value, S.empty());
+  // Nothing at all is the same as an empty object.
+  assert.deepEqual(S.validate(null).errors, {});
+});
+
+test('a blank name uses the fallback name', () => {
+  const r = S.validate({ name: '   ' }, { fallbackName: 'maya' });
+  assert.equal(r.value.name, 'maya');
+  assert.equal(r.errors.name, undefined);
+  // Whitespace-only input is treated as empty, so the fallback applies.
+  assert.equal(S.validate({ name: '' }, { fallbackName: 'maya' }).value.name, 'maya');
+  // Without a fallback the name stays null and still does not block the save.
+  const none = S.validate({ name: ' ' });
+  assert.equal(none.value.name, null);
+  assert.equal(none.errors.name, undefined);
+  // A name the person typed always wins over the fallback.
+  assert.equal(S.validate({ name: 'Ana' }, { fallbackName: 'maya' }).value.name, 'Ana');
+});
+
+test('a name over the limit is still an error', () => {
+  const r = S.validate({ name: 'a'.repeat(S.LIMITS.name + 1) }, { fallbackName: 'maya' });
+  assert.equal(r.errors.name, 'Keep your name to ' + S.LIMITS.name + ' characters.');
+  // A fallback longer than the limit is cut, so it can never cause an error.
+  const longUser = S.validate({}, { fallbackName: 'u'.repeat(S.LIMITS.name + 10) });
+  assert.equal(longUser.value.name.length, S.LIMITS.name);
+  assert.equal(longUser.errors.name, undefined);
+});
+
+test('a prompt with no answer is skipped, not an error', () => {
+  const r = S.validate({
+    name: 'Maya',
+    prompts: [
+      { prompt: S.PROMPTS[0], answer: 'I can fix bikes' },
+      { prompt: S.PROMPTS[2], answer: '   ' },
+    ],
+  });
+  assert.deepEqual(r.value.prompts, [{ prompt: S.PROMPTS[0], answer: 'I can fix bikes' }]);
+  assert.equal(r.errors.prompt1, undefined);
+  assert.deepEqual(r.errors, {});
+  // The unanswered block is skipped before its question is checked.
+  const unknown = S.validate({ prompts: [{ prompt: 'Not a prompt', answer: '' }] });
+  assert.deepEqual(unknown.value.prompts, []);
+  assert.deepEqual(unknown.errors, {});
+  // Two blocks on the same prompt where one is unanswered: no duplicate error.
+  const same = S.validate({ prompts: [
+    { prompt: S.PROMPTS[0], answer: 'First' },
+    { prompt: S.PROMPTS[0], answer: '' },
+  ] });
+  assert.deepEqual(same.errors, {});
+  assert.equal(same.value.prompts.length, 1);
+});
+
+test('real mistakes still block the save', () => {
+  assert.ok(S.validate({ name: 'Maya', age: 12 }).errors.age);
+  assert.ok(S.validate({ name: 'Maya', age: 120 }).errors.age);
+  assert.ok(S.validate({ name: 'Maya', instagram: 'not allowed!' }).errors.instagram);
+  assert.ok(S.validate({ name: 'Maya', spotify: 'bad/handle' }).errors.spotify);
+  const tooLong = S.validate({ name: 'Maya', prompts: [
+    { prompt: S.PROMPTS[0], answer: 'a'.repeat(S.LIMITS.answer + 1) },
+  ] });
+  assert.ok(tooLong.errors.prompt0);
+  const dup = S.validate({ name: 'Maya', prompts: [
+    { prompt: S.PROMPTS[0], answer: 'One' },
+    { prompt: S.PROMPTS[0], answer: 'Two' },
+  ] });
+  assert.ok(dup.errors.prompt1);
+});
